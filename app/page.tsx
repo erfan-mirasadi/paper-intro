@@ -39,7 +39,7 @@ export default function Home() {
         dpr={[1, 2]}
         className="z-10"
       >
-        <fogExp2 attach="fog" color="#A3906D" density={0.0004} />
+        <fogExp2 attach="fog" color="#A3906D" density={0.0004} args={["#A3906D", 0.0004]} />
         <Skybox />
 
         <ambientLight intensity={1.5} />

@@ -1,22 +1,20 @@
 "use client";
 
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 import { extend, useLoader } from "@react-three/fiber";
 import * as THREE from "three";
 import {
   Lensflare,
   LensflareElement,
-} from "three/examples/jsm/objects/Lensflare";
+} from "three/examples/jsm/objects/Lensflare.js";
 
 // Register Lensflare as a JSX component
 extend({ Lensflare, LensflareElement });
 
-declare global {
-  namespace JSX {
-    interface IntrinsicElements {
-      lensflare: any;
-      lensflareElement: any;
-    }
+declare module "@react-three/fiber" {
+  interface ThreeElements {
+    lensflare: any;
+    lensflareElement: any;
   }
 }
 

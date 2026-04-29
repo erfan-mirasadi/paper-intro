@@ -180,7 +180,7 @@ export default function SunSky() {
     pmremGenerator.compileEquirectangularShader();
 
     // We map the sky mesh into an environment map texture
-    const renderTarget = pmremGenerator.fromScene(skyMesh);
+    const renderTarget = pmremGenerator.fromScene(scene);
     const envMap = renderTarget.texture;
 
     // Apply the generated envMap to the whole scene for global reflections
