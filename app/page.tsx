@@ -27,9 +27,6 @@ export default function Home() {
         <fog attach="fog" args={["#1e2f3f", 10, 2000]} />
         <NeonLinesScene />
         
-        <ambientLight intensity={1.5} />
-        <directionalLight position={[-10, 20, 10]} intensity={2} />
-
         <Suspense fallback={null}>
           <OceanScene />
           <OrbitControls makeDefault enableDamping />

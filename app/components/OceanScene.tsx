@@ -15,8 +15,10 @@ declare module "@react-three/fiber" {
 
 export default function OceanScene() {
   const waterRef = useRef<Water>(null!);
+  const ambientRef = useRef<THREE.AmbientLight>(null!);
+  const directionalRef = useRef<THREE.DirectionalLight>(null!);
 
-  // Load the water normal map - Make sure this file exists in your public/textures folder!
+  // Load the water normal map
   const texture = useLoader(THREE.TextureLoader, "/textures/waternormals.jpg");
 
   const waterNormals = useMemo(() => {
@@ -25,19 +27,18 @@ export default function OceanScene() {
     return t;
   }, [texture]);
 
-  // Use useMemo for the configuration to prevent unnecessary re-renders
   const config = useMemo(
     () => ({
       textureWidth: 512,
       textureHeight: 512,
       waterNormals,
-      sunDirection: new THREE.Vector3(0, 0.5, -1).normalize(), // Sunset/sunrise angle for beautiful reflections
-      sunColor: 0xffffff,
-      waterColor: 0x13192e, // Lighter base color to see the waves and depth better
-      distortionScale: 5.0, // Tweaked for clearer, more realistic waves
-      size: 1.5, // Increased size to make the normal map look more natural
+      sunDirection: new THREE.Vector3(0, 0.5, -1).normalize(),
+      sunColor: 0x444444, // Kept the dark sun color permanently
+      waterColor: 0x001e0f, // Kept the dark water color permanently
+      distortionScale: 5.0,
+      size: 1.5,
       fog: true,
-      alpha: 0.85, // Added alpha transparency so we can see objects underneath
+      alpha: 0.85,
     }),
     [waterNormals],
   );
@@ -45,33 +46,38 @@ export default function OceanScene() {
   // Animate the water
   useFrame((_state, delta) => {
     if (waterRef.current) {
-      waterRef.current.material.uniforms["time"].value += delta * 0.35; // Faster, more turbulent ocean movement
+      // Time animation for continuous wave movement
+      waterRef.current.material.uniforms["time"].value += delta * 0.35;
     }
   });
 
   return (
-    // Group everything to manage the overall ocean position easily
-    <group position={[0, -2, 0]}>
-      {/* The surface of the water */}
-      <water
-        ref={waterRef}
-        args={[new THREE.PlaneGeometry(10000, 10000), config]}
-        rotation-x={-Math.PI / 2}
-        position={[0, 0, 0]}
+    <>
+      <ambientLight ref={ambientRef} intensity={0.2} />
+      <directionalLight
+        ref={directionalRef}
+        position={[-10, 20, 10]}
+        intensity={0.5}
       />
 
-      {/* Deep ocean volume for fish, submarines, and island bases! */}
-      {/* Lowered the position to -510 so the top face is at -10, fixing the Z-Fighting issue! */}
-      <mesh position={[0, -510, 0]}>
-        <boxGeometry args={[10000, 1000, 10000]} />
-        {/* Changed to BasicMaterial for better performance and to avoid lighting glitches inside the box */}
-        <meshBasicMaterial
-          color={0x001220} // Very deep, dark ocean blue for the volume
-          transparent={true}
-          opacity={0.8}
-          depthWrite={false} // Prevents z-fighting issues with objects inside
+      <group position={[0, -2, 0]}>
+        <water
+          ref={waterRef}
+          args={[new THREE.PlaneGeometry(10000, 10000), config]}
+          rotation-x={-Math.PI / 2}
+          position={[0, 0, 0]}
         />
-      </mesh>
-    </group>
+
+        <mesh position={[0, -510, 0]}>
+          <boxGeometry args={[10000, 1000, 10000]} />
+          <meshBasicMaterial
+            color={0x001220}
+            transparent={true}
+            opacity={0.8}
+            depthWrite={false}
+          />
+        </mesh>
+      </group>
+    </>
   );
 }
