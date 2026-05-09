@@ -24,9 +24,9 @@ export default function Home() {
         className="z-10"
       >
         <Skybox />
-        <fog attach="fog" args={["#1e2f3f", 10, 2000]} />
+        <fog attach="fog" args={["#1e2f3f", 10, 4000]} />
         <NeonLinesScene />
-        
+
         <Suspense fallback={null}>
           <OceanScene />
           <OrbitControls makeDefault enableDamping />
