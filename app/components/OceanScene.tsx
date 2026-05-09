@@ -143,8 +143,34 @@ export default function OceanScene() {
     mat.needsUpdate = true;
   }, [darkWaterColor, brightWaterColor]);
 
-  // Animate the water and sweeping line
-  useFrame((_state, delta) => {
+  // Camera movement config
+  const camStartPos = 4000;
+  const camEndPos = -3500;
+  const camSpeed = 450;
+  const cameraZ = useRef(camStartPos);
+
+  // Animate the water, sweeping line, and camera
+  useFrame((state, delta) => {
+    // 1. Camera Movement Loop
+    cameraZ.current -= camSpeed * delta;
+    if (cameraZ.current < camEndPos) {
+      cameraZ.current = camStartPos;
+    }
+
+    // Set camera position (slightly to the right, slightly above water surface y=-2)
+    state.camera.position.set(300, 25, cameraZ.current);
+
+    // Update OrbitControls target if they exist to follow the movement
+    if (state.controls) {
+      // @ts-ignore
+      state.controls.target.set(300, 25, cameraZ.current - 200);
+      // @ts-ignore
+      state.controls.update();
+    } else {
+      state.camera.lookAt(0, 20, cameraZ.current - 200);
+    }
+
+    // 2. Water Shader Animation
     if (waterRef.current) {
       const mat = waterRef.current.material;
 
@@ -153,7 +179,7 @@ export default function OceanScene() {
 
       // Move the pulse away from the camera (negative Z direction)
       if (pulseZ.current > -8000) {
-        pulseZ.current -= delta * 800; // Speed of the pulse (reduced for slower movement)
+        pulseZ.current -= delta * 800; // Speed of the pulse
       }
 
       // Ensure uniforms are injected before updating them
