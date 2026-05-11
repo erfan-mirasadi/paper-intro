@@ -138,13 +138,19 @@ export default function NeonLinesScene() {
     // IMPORTANT: ShaderMaterial clones the uniforms on creation.
     // We must update the materials' uniforms directly.
     materialsRef.current.forEach((mat) => {
-      if (mat) {
-        mat.uniforms.time.value = state.clock.getElapsedTime();
-        mat.uniforms.mouse.value.set(
-          currentMouseX.current,
-          currentMouseY.current,
-        );
-        mat.uniforms.clickPulse.value = clickValue.current;
+      if (mat && mat.uniforms) {
+        if (mat.uniforms.time) {
+          mat.uniforms.time.value = state.clock.getElapsedTime();
+        }
+        if (mat.uniforms.mouse && mat.uniforms.mouse.value) {
+          mat.uniforms.mouse.value.set(
+            currentMouseX.current,
+            currentMouseY.current,
+          );
+        }
+        if (mat.uniforms.clickPulse) {
+          mat.uniforms.clickPulse.value = clickValue.current;
+        }
       }
     });
 

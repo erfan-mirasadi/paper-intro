@@ -1,12 +1,12 @@
-import React, { useRef, useMemo, useEffect } from "react";
+import { useRef, useMemo, useEffect } from "react";
 import * as THREE from "three";
 import { ThreeElement, useFrame, extend, useLoader } from "@react-three/fiber";
 import { Water } from "three/examples/jsm/objects/Water.js";
 import Island from "./Island";
+import Island2 from "./Island2";
 import Lighthouse from "./Lighthouse";
 import StaticClouds from "./StaticClouds";
 
-// Extend R3F with the Water object
 extend({ Water });
 
 // Add types for the extended water element
@@ -18,19 +18,33 @@ declare module "@react-three/fiber" {
 
 export default function OceanScene() {
   const waterRef = useRef<Water>(null!);
-  const ambientRef = useRef<THREE.AmbientLight>(null!);
-  const directionalRef = useRef<THREE.DirectionalLight>(null!);
-
   const pulseZ = useRef(2000); // Start far away / invisible
-
   // Adjust this percentage to control mountain darkness (0 = black, 1 = full brightness)
   const mountainBrightness = 0.1;
-
   // Define our fixed colors outside to avoid recreation
   const darkWaterColor = useMemo(() => new THREE.Color(0x001e0f), []);
   const brightWaterColor = useMemo(() => new THREE.Color(0x00aaff), []);
-  const darkSunColor = useMemo(() => new THREE.Color(0x444444), []);
-  const brightSunColor = useMemo(() => new THREE.Color(0xffffff), []);
+
+  // Calculate the exact world position of the Moon based on the Skybox group scale (7000)
+  // Position: [0, 0.2, -0.91] * 7000 = [0, 1400, -6370]
+  const moonWorldPosition = useMemo(
+    () => new THREE.Vector3(0, 1400, -6370),
+    [],
+  );
+
+  // ==========================================
+  // Moon reflection settings on water
+  // ==========================================
+  const moonConfig = useMemo(
+    () => ({
+      color: 0x5599cc, // Color of the moon reflection
+      direction: new THREE.Vector3(0, 0.15, -1).normalize(), // Initial fallback direction
+      shininess: "2500.0", // How narrow the light line is (higher = narrower)
+      brightness: "10.0", // Intensity of the moon light on water
+    }),
+    [],
+  );
+  // ==========================================
 
   // Load the textures
   const texture = useLoader(THREE.TextureLoader, "/textures/waternormals.jpg");
@@ -64,15 +78,16 @@ export default function OceanScene() {
       textureWidth: 512,
       textureHeight: 512,
       waterNormals,
-      sunDirection: new THREE.Vector3(0, 0.5, -1).normalize(),
-      sunColor: 0x444444,
-      waterColor: 0x001e0f,
-      distortionScale: 5.0,
-      size: 1.5,
+      sunDirection: moonConfig.direction,
+      sunColor: moonConfig.color,
+
+      waterColor: 0x00121a,
+      distortionScale: 4.0,
+      size: 1.0,
       fog: true,
       alpha: 0.85,
     }),
-    [waterNormals],
+    [waterNormals, moonConfig],
   );
 
   // Inject custom shader logic for the sweeping line effect
@@ -132,50 +147,34 @@ export default function OceanScene() {
         `,
       );
 
-      // Safely replace the built-in waterColor with our dynamic one
+      // Replace shader default water color with our dynamic one, and apply moon brightness
       shader.fragmentShader = shader.fragmentShader
         .replace(" * waterColor", " * dynamicWaterColor")
-        .replace("mix( waterColor,", "mix( dynamicWaterColor,");
+        .replace("mix( waterColor,", "mix( dynamicWaterColor,")
+        .replace(
+          "100.0, 2.0, 0.5",
+          `${moonConfig.shininess}, ${moonConfig.brightness}, 0.5`,
+        );
     };
 
     // Force Three.js to recompile the material with our new shader code
     mat.customProgramCacheKey = () => "pulse_water_shader";
     mat.needsUpdate = true;
-  }, [darkWaterColor, brightWaterColor]);
+  }, [darkWaterColor, brightWaterColor, moonConfig]);
 
   // Camera movement config
   const camStartPos = 4000;
-  const camEndPos = -3500;
-  const camSpeed = 450;
-  const cameraZ = useRef(camStartPos);
 
   // Animate the water, sweeping line, and camera
   useFrame((state, delta) => {
-    // 1. Camera Movement Loop
-    cameraZ.current -= camSpeed * delta;
-    if (cameraZ.current < camEndPos) {
-      cameraZ.current = camStartPos;
-    }
-
-    // Set camera position (slightly to the right, slightly above water surface y=-2)
-    state.camera.position.set(300, 25, cameraZ.current);
-
-    // Update OrbitControls target if they exist to follow the movement
-    if (state.controls) {
-      // @ts-ignore
-      state.controls.target.set(300, 25, cameraZ.current - 200);
-      // @ts-ignore
-      state.controls.update();
-    } else {
-      state.camera.lookAt(0, 20, cameraZ.current - 200);
-    }
-
-    // 2. Water Shader Animation
+    // Water Shader Animation
     if (waterRef.current) {
       const mat = waterRef.current.material;
 
       // Time animation for continuous wave movement
-      mat.uniforms["time"].value += delta * 0.35;
+      if (mat.uniforms && mat.uniforms.time) {
+        mat.uniforms.time.value += delta * 0.35;
+      }
 
       // Move the pulse away from the camera (negative Z direction)
       if (pulseZ.current > -8000) {
@@ -186,19 +185,21 @@ export default function OceanScene() {
       if (mat.uniforms.uPulseZ) {
         mat.uniforms.uPulseZ.value = pulseZ.current;
       }
+
+      // SMART TRICK: Dynamically calculate the direction from camera to the moon's exact world position!
+      if (mat.uniforms.sunDirection) {
+        mat.uniforms.sunDirection.value
+          .copy(moonWorldPosition)
+          .sub(state.camera.position)
+          .normalize();
+      }
     }
   });
 
   return (
     <>
-      <ambientLight ref={ambientRef} intensity={0.2} />
-      <directionalLight
-        ref={directionalRef}
-        position={[-10, 20, 10]}
-        intensity={0.5}
-      />
-
       <Island />
+      <Island2 />
       <Lighthouse />
       <StaticClouds />
 
@@ -224,7 +225,7 @@ export default function OceanScene() {
               `
               #include <worldpos_vertex>
               vWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
-              `
+              `,
             );
             shader.fragmentShader = `
               varying vec3 vWorldPos;
@@ -235,7 +236,7 @@ export default function OceanScene() {
               // Fade out at top and bottom (different range for back mist)
               float fade = smoothstep(-150.0, -50.0, vWorldPos.y) * (1.0 - smoothstep(100.0, 225.0, vWorldPos.y));
               gl_FragColor = vec4( outgoingLight, diffuseColor.a * fade );
-              `
+              `,
             );
           }}
         />

@@ -242,7 +242,7 @@ export default function Lighthouse() {
   if (error || !scene) return null;
 
   return (
-    <group position={config.groupPosition}>
+    <group position={config.groupPosition} rotation={[0, Math.PI / 2, 0]}>
       <LighthouseLight
         position={config.lightPosition}
         lightColor={config.lightColor}

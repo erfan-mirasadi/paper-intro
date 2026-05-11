@@ -14,32 +14,31 @@ function PlaceholderMesh() {
   return null;
 }
 
-// Create instances outside the component to ensure purity
+// Create instances for Island2 with different positions outside the component
+// to keep the component pure and avoid "impure function during render" errors.
 const INSTANCES = [
   {
-    id: 1,
-    position: [600, 5, -1200] as [number, number, number],
+    id: "i2-1",
+    position: [-2000, -10, -1000] as [number, number, number],
     rotation: [0, Math.random() * Math.PI, 0] as [number, number, number],
-    scale: 300,
+    scale: 1,
   },
   {
-    id: 2,
-    position: [-800, 10, -1800] as [number, number, number],
-    rotation: [0, Math.random() * Math.PI, 0] as [number, number, number],
-    scale: 450,
-  },
-  {
-    id: 3,
-    position: [1200, 15, -2500] as [number, number, number],
-    rotation: [0, Math.random() * Math.PI, 0] as [number, number, number],
-    scale: 1000,
+    id: "i2-2",
+    position: [2000, -10, -1800] as [number, number, number],
+    rotation: [0, Math.random() * Math.PI + Math.PI / 1, 0] as [
+      number,
+      number,
+      number,
+    ],
+    scale: 1.6,
   },
 ];
 
-export default function Island() {
+export default function Island2() {
   const gl = useThree((state) => state.gl);
   const [scene, setScene] = useState<THREE.Group | null>(null);
-  const url = "/island.glb";
+  const url = "/mountain-sea.glb";
 
   useEffect(() => {
     let isMounted = true;
@@ -75,7 +74,6 @@ export default function Island() {
       (gltf) => {
         if (!isMounted) return;
 
-        // Process materials like in RealModel.tsx
         gltf.scene.traverse((obj: any) => {
           if (obj.isMesh) {
             obj.castShadow = true;
@@ -120,7 +118,7 @@ export default function Island() {
       },
       undefined,
       (err) => {
-        console.error(`❌ Error loading island model:`, err);
+        console.error(`❌ Error loading island-2 model:`, err);
       },
     );
 
@@ -129,14 +127,12 @@ export default function Island() {
     };
   }, [gl, url]);
 
-  // Memoize the clones so we don't clone on every render
   const islandClones = useMemo(() => {
     if (!scene) return [];
     return INSTANCES.map(() => scene.clone());
   }, [scene]);
 
   if (!scene) return <PlaceholderMesh />;
-
   return (
     <group>
       {INSTANCES.map((inst, index) => (
