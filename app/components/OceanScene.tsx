@@ -54,11 +54,11 @@ export default function OceanScene() {
   useMemo(() => {
     mountainTexture.wrapS = THREE.MirroredRepeatWrapping;
     mountainTexture.wrapT = THREE.ClampToEdgeWrapping;
-    mountainTexture.repeat.set(48, 1);
+    mountainTexture.repeat.set(12, 1);
 
     mistTexture.wrapS = THREE.MirroredRepeatWrapping;
     mistTexture.wrapT = THREE.ClampToEdgeWrapping;
-    mistTexture.repeat.set(16, 1);
+    mistTexture.repeat.set(4, 1);
   }, [mountainTexture, mistTexture]);
 
   const mistTextureBack = useMemo(() => {
@@ -203,10 +203,11 @@ export default function OceanScene() {
       <Lighthouse />
       <StaticClouds />
 
-      {/* Back Mist layer (behind mountains) */}
       <mesh position={[0, -25, 0]} rotation-y={Math.PI / 4} renderOrder={-3}>
-        {/* Slightly further than mountains (7100), taller for depth */}
-        <cylinderGeometry args={[7100, 7100, 250, 4, 1, true]} />
+        {/* Slightly further than mountains (7100), taller for depth. Only on the facing edge. */}
+        <cylinderGeometry
+          args={[7100, 7100, 250, 1, 1, true, 0.5 * Math.PI, Math.PI / 2]}
+        />
         <meshBasicMaterial
           map={mistTextureBack}
           transparent={true}
@@ -242,10 +243,11 @@ export default function OceanScene() {
         />
       </mesh>
 
-      {/* Distant mountains at the horizon, square shape to match water bounds */}
       <mesh position={[0, -25, 0]} rotation-y={Math.PI / 4} renderOrder={-2}>
-        {/* Radius 7000 creates walls at ~4950 distance, just inside the 5000 water edge. 4 segments = square */}
-        <cylinderGeometry args={[7000, 7000, 175, 4, 1, true]} />
+        {/* Radius 7000 creates walls at ~4950 distance. Only on the facing edge. */}
+        <cylinderGeometry
+          args={[7000, 7000, 175, 1, 1, true, 0.5 * Math.PI, Math.PI / 2]}
+        />
         <meshBasicMaterial
           map={mountainTexture}
           color={
@@ -263,10 +265,11 @@ export default function OceanScene() {
         />
       </mesh>
 
-      {/* Mist layer in front of mountains */}
       <mesh position={[0, -25, 0]} rotation-y={Math.PI / 4} renderOrder={-1}>
-        {/* Slightly closer than mountains (6900), taller for better fading. 4 segments = square */}
-        <cylinderGeometry args={[6900, 6900, 150, 4, 1, true]} />
+        {/* Slightly closer than mountains (6900), taller for better fading. Only on the facing edge. */}
+        <cylinderGeometry
+          args={[6900, 6900, 150, 1, 1, true, 0.5 * Math.PI, Math.PI / 2]}
+        />
         <meshBasicMaterial
           map={mistTexture}
           transparent={true}

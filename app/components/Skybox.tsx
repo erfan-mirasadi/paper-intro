@@ -193,7 +193,7 @@ export default function Skybox() {
           {/* Sliced the sphere to exactly 1/4 of a full sphere (180 deg horizontal, 90 deg vertical) */}
           {/* Centered perfectly in front of the camera looking down the -Z axis */}
           <sphereGeometry
-            args={[1, 64, 64, Math.PI / 2, Math.PI, 0, Math.PI / 2]}
+            args={[1, 16, 16, Math.PI / 2, Math.PI, 0, Math.PI / 2]}
           />
           <meshBasicMaterial
             map={skyTexture}

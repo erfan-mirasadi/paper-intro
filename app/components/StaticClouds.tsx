@@ -52,7 +52,7 @@ export default function StaticClouds() {
       <meshBasicMaterial
         map={texture}
         transparent={true}
-        opacity={0.005}
+        opacity={0.03}
         depthWrite={false}
         color="#aaddff" // Soft bluish-white tint
         side={THREE.DoubleSide}

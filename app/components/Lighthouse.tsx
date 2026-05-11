@@ -41,7 +41,7 @@ function LighthouseLight({
       <group ref={groupRef}>
         {/* Fake volumetric beam (Light Halo) - Soft edges and fade using custom shader */}
         <mesh position={[0, 0, 1500]} rotation={[-Math.PI / 2, 0, 0]}>
-          <coneGeometry args={[700, 3000, 64, 1, true]} />
+          <coneGeometry args={[700, 3000, 32, 1, true]} />
           <shaderMaterial
             uniforms={uniforms}
             transparent={true}

@@ -183,7 +183,7 @@ export default function NeonLinesScene() {
       <group ref={linesGroupRef} position={[-3, -2, -5]}>
         {Array.from({ length: LINE_COUNT }).map((_, i) => (
           <mesh key={i}>
-            <tubeGeometry args={[curve, 250, LINE_RADIUS, 8, false]} />
+            <tubeGeometry args={[curve, 64, LINE_RADIUS, 8, false]} />
             <shaderMaterial
               ref={(el) => {
                 if (el) materialsRef.current[i] = el;

@@ -7,6 +7,7 @@ import { OrbitControls } from "@react-three/drei";
 import Skybox from "./components/Skybox";
 import NeonLinesScene from "./components/NeonLinesScene";
 import OceanScene from "./components/OceanScene";
+import StaticStarsParticles from "./components/StaticStarsParticles";
 
 export default function Home() {
   return (
@@ -25,6 +26,7 @@ export default function Home() {
         <Skybox />
         {/* <fog attach="fog" args={["#1e2f3f", 10, 4000]} /> */}
         <NeonLinesScene />
+        <StaticStarsParticles />
 
         <Suspense fallback={null}>
           <OceanScene />
