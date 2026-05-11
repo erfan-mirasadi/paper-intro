@@ -4,55 +4,62 @@ import React, { useRef, useLayoutEffect } from "react";
 import * as THREE from "three";
 import { useLoader } from "@react-three/fiber";
 
-export default function StaticClouds() {
+interface StaticCloudsProps {
+  count?: number;
+  spread?: [number, number, number];
+  offset?: [number, number, number];
+  baseScale?: number;
+  opacity?: number;
+  renderOrder?: number;
+  rotation?: [number, number, number];
+}
+
+export default function StaticClouds({
+  count = 400,
+  spread = [5000, 400, 5000],
+  offset = [0, 350, -500],
+  baseScale = 300,
+  opacity = 0.03,
+  renderOrder = -4,
+  rotation = [0, 0, 0],
+}: StaticCloudsProps) {
   const texture = useLoader(THREE.TextureLoader, "/img/ulap.png");
   const meshRef = useRef<THREE.InstancedMesh>(null!);
-
-  const count = 400;
 
   useLayoutEffect(() => {
     if (!meshRef.current) return;
     const dummy = new THREE.Object3D();
 
     for (let i = 0; i < count; i++) {
-      // Cluster clouds around the models (radius ~2500)
-      const x = (Math.random() - 0.5) * 5000;
+      const x = (Math.random() - 0.5) * spread[0] + offset[0];
+      const y = (Math.random() - 0.5) * spread[1] + offset[1];
+      const z = (Math.random() - 0.5) * spread[2] + offset[2];
 
-      // Lower height range (from 150 to 550)
-      const y = Math.random() * 400 + 150;
-      const z = (Math.random() - 0.5) * 5000 - 500; // Centered slightly towards the lighthouse at -1000
-
-      const rotationY = 0; // All face the same direction
       const scaleX = Math.random() * 4.0 + 2.0;
       const scaleY = Math.random() * 0.4 + 0.2;
 
       dummy.position.set(x, y, z);
-
-      // Make them vertical (standing up) instead of flat.
-      // Rotate on Y to face different directions.
-      dummy.rotation.set(0, rotationY, 0);
-
-      // Apply scale (base cloud size is 300)
-      dummy.scale.set(300 * scaleX, 300 * scaleY, 1);
+      dummy.rotation.set(rotation[0], rotation[1], rotation[2]);
+      dummy.scale.set(baseScale * scaleX, baseScale * scaleY, 1);
 
       dummy.updateMatrix();
       meshRef.current.setMatrixAt(i, dummy.matrix);
     }
 
     meshRef.current.instanceMatrix.needsUpdate = true;
-  }, []);
+  }, [count, spread, offset, baseScale, rotation]);
 
   return (
     <instancedMesh
       ref={meshRef}
       args={[undefined, undefined, count]}
-      renderOrder={-4}
+      renderOrder={renderOrder}
     >
       <planeGeometry args={[1, 1]} />
       <meshBasicMaterial
         map={texture}
         transparent={true}
-        opacity={0.03}
+        opacity={opacity}
         depthWrite={false}
         color="#aaddff" // Soft bluish-white tint
         side={THREE.DoubleSide}

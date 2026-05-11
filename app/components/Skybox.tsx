@@ -1,8 +1,9 @@
 "use client";
 
 import { Environment, Billboard, useTexture } from "@react-three/drei";
+import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 
 // Centralized configuration for the moon's lighting and glow effects
 const MOON_CONFIG = {
@@ -178,6 +179,13 @@ export function Moon() {
 
 export default function Skybox() {
   const skyTexture = useTexture("/night-6.jpg");
+  const groupRef = useRef<THREE.Group>(null);
+
+  useFrame((state) => {
+    if (groupRef.current) {
+      groupRef.current.position.copy(state.camera.position);
+    }
+  });
 
   return (
     <>
@@ -186,25 +194,27 @@ export default function Skybox() {
         background={false}
         environmentIntensity={0.4}
       />
-      {/* Grouping both to the same center/origin and reducing scale by half to fix depth precision issues */}
-      <group scale={7000}>
-        {/* High quality background mesh optimized for front-view only */}
-        <mesh rotation={[-0.1, Math.PI / 2, 0]}>
-          {/* Sliced the sphere to exactly 1/4 of a full sphere (180 deg horizontal, 90 deg vertical) */}
-          {/* Centered perfectly in front of the camera looking down the -Z axis */}
-          <sphereGeometry
-            args={[1, 16, 16, Math.PI / 2, Math.PI, 0, Math.PI / 2]}
-          />
-          <meshBasicMaterial
-            map={skyTexture}
-            side={THREE.BackSide}
-            toneMapped={false}
-            fog={false}
-          />
-        </mesh>
-
-        {/* Render the separated Moon Component */}
-        <Moon />
+      <group ref={groupRef}>
+        {/* Grouping both to the same center/origin and reducing scale by half to fix depth precision issues */}
+        <group scale={6000}>
+          {/* High quality background mesh optimized for front-view only */}
+          <mesh
+            position={[0, -0.15, 1.6]} // You can change this to move ONLY the sky background
+            rotation={[0, Math.PI / 2, 0]}
+            scale={[3, 0.8, 1]}
+          >
+            <sphereGeometry
+              args={[1, 16, 16, Math.PI / 2, Math.PI, 0, Math.PI / 2]}
+            />
+            <meshBasicMaterial
+              map={skyTexture}
+              side={THREE.BackSide}
+              toneMapped={false}
+              fog={false}
+            />
+          </mesh>
+          <Moon />
+        </group>
       </group>
     </>
   );

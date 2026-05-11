@@ -6,6 +6,8 @@ import Island from "./Island";
 import Island2 from "./Island2";
 import Lighthouse from "./Lighthouse";
 import StaticClouds from "./StaticClouds";
+import Mountain2 from "./Mountain2";
+import VolumetricSmoke from "./VolumetricSmoke";
 
 extend({ Water });
 
@@ -202,6 +204,38 @@ export default function OceanScene() {
       <Island2 />
       <Lighthouse />
       <StaticClouds />
+      <Mountain2
+        position={[0, 500, 10000]}
+        rotation={[0, 4, 0]}
+        scale={40}
+        color={[0.2, 0.2, 0.2]}
+      />
+
+      {/* Distant static mist on all 4 sides of the ocean */}
+      {/* back */}
+      <group position={[0, -100, 5000]} scale={[40, 15, 2]}>
+        <VolumetricSmoke count={100} animate={false} renderOrder={-4} opacity={0.3} />
+      </group>
+      {/* FRONT */}
+      <group position={[0, -100, -5000]} scale={[30, 15, 1]}>
+        <VolumetricSmoke count={280} animate={false} renderOrder={-4} opacity={0.3} />
+      </group>
+      {/* right */}
+      <group
+        position={[4500, -100, 0]}
+        scale={[70, 15, 1]}
+        rotation={[0, Math.PI / 2, 0]}
+      >
+        <VolumetricSmoke count={80} animate={false} renderOrder={-4} opacity={0.3} />
+      </group>
+      {/* left */}
+      <group
+        position={[-3500, -100, 0]}
+        scale={[40, 15, 1]}
+        rotation={[0, Math.PI / 2, 0]}
+      >
+        <VolumetricSmoke count={80} animate={false} renderOrder={-4} opacity={0.3} />
+      </group>
 
       <mesh position={[0, -25, 0]} rotation-y={Math.PI / 4} renderOrder={-3}>
         {/* Slightly further than mountains (7100), taller for depth. Only on the facing edge. */}

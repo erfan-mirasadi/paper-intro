@@ -90,7 +90,7 @@ export default function Island() {
 
                 obj.material = new THREE.MeshBasicMaterial({
                   map: clonedMap,
-                  color: obj.material.color,
+                  color: obj.material.color ? obj.material.color.clone().multiplyScalar(0.12) : new THREE.Color(0.12, 0.12, 0.12),
                   transparent: true,
                   opacity:
                     obj.material.transmission > 0
@@ -101,7 +101,7 @@ export default function Island() {
                 });
               } else {
                 obj.material = new THREE.MeshBasicMaterial({
-                  color: obj.material.color,
+                  color: obj.material.color ? obj.material.color.clone().multiplyScalar(0.12) : new THREE.Color(0.12, 0.12, 0.12),
                   transparent: obj.material.transparent,
                   opacity:
                     obj.material.transmission > 0
