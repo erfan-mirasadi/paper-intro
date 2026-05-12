@@ -29,8 +29,7 @@ export default function Home() {
           <Suspense fallback={null}>
             <SceneTransition
               sequenceLength={29.35}
-              holdMs={1800}
-              overlapMs={0}
+              holdMs={4800}
               exitBeforeSec={2}
             >
               <PerspectiveCamera
