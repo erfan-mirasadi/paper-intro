@@ -179,7 +179,7 @@ export default function OceanScene() {
       }
 
       // Move the pulse away from the camera (negative Z direction)
-      if (pulseZ.current > -8000) {
+      if (pulseZ.current > -36000) {
         pulseZ.current -= delta * 800; // Speed of the pulse
       }
 
@@ -217,8 +217,8 @@ export default function OceanScene() {
         <VolumetricSmoke count={100} animate={false} renderOrder={-4} opacity={0.3} />
       </group>
       {/* FRONT */}
-      <group position={[0, -100, -5000]} scale={[30, 15, 1]}>
-        <VolumetricSmoke count={280} animate={false} renderOrder={-4} opacity={0.3} />
+      <group position={[0, -100, -19800]} scale={[120, 15, 1]}>
+        <VolumetricSmoke count={1120} animate={false} renderOrder={-4} opacity={0.3} />
       </group>
       {/* right */}
       <group
@@ -238,9 +238,9 @@ export default function OceanScene() {
       </group>
 
       <mesh position={[0, -25, 0]} rotation-y={Math.PI / 4} renderOrder={-3}>
-        {/* Slightly further than mountains (7100), taller for depth. Only on the facing edge. */}
+        {/* Slightly further than mountains (28200), taller for depth. Only on the facing edge. */}
         <cylinderGeometry
-          args={[7100, 7100, 250, 1, 1, true, 0.5 * Math.PI, Math.PI / 2]}
+          args={[28200, 28200, 250, 1, 1, true, 0.5 * Math.PI, Math.PI / 2]}
         />
         <meshBasicMaterial
           map={mistTextureBack}
@@ -278,9 +278,9 @@ export default function OceanScene() {
       </mesh>
 
       <mesh position={[0, -25, 0]} rotation-y={Math.PI / 4} renderOrder={-2}>
-        {/* Radius 7000 creates walls at ~4950 distance. Only on the facing edge. */}
+        {/* Radius 28000 creates walls at ~19800 distance. Only on the facing edge. */}
         <cylinderGeometry
-          args={[7000, 7000, 175, 1, 1, true, 0.5 * Math.PI, Math.PI / 2]}
+          args={[28000, 28000, 175, 1, 1, true, 0.5 * Math.PI, Math.PI / 2]}
         />
         <meshBasicMaterial
           map={mountainTexture}
@@ -300,9 +300,9 @@ export default function OceanScene() {
       </mesh>
 
       <mesh position={[0, -25, 0]} rotation-y={Math.PI / 4} renderOrder={-1}>
-        {/* Slightly closer than mountains (6900), taller for better fading. Only on the facing edge. */}
+        {/* Slightly closer than mountains (27800), taller for better fading. Only on the facing edge. */}
         <cylinderGeometry
-          args={[6900, 6900, 150, 1, 1, true, 0.5 * Math.PI, Math.PI / 2]}
+          args={[27800, 27800, 150, 1, 1, true, 0.5 * Math.PI, Math.PI / 2]}
         />
         <meshBasicMaterial
           map={mistTexture}
@@ -343,7 +343,7 @@ export default function OceanScene() {
       <group position={[0, -2, 0]}>
         <water
           ref={waterRef}
-          args={[new THREE.PlaneGeometry(10000, 10000), config]}
+          args={[new THREE.PlaneGeometry(40000, 40000), config]}
           rotation-x={-Math.PI / 2}
           position={[0, 0, 0]}
           onPointerDown={(e) => {
@@ -353,7 +353,7 @@ export default function OceanScene() {
         />
 
         <mesh position={[0, -510, 0]}>
-          <boxGeometry args={[10000, 1000, 10000]} />
+          <boxGeometry args={[40000, 1000, 40000]} />
           <meshBasicMaterial
             color={0x001220}
             transparent={true}

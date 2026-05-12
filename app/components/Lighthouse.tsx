@@ -167,7 +167,7 @@ function Birds({ position = [0, 400, 0] as [number, number, number] }) {
 export default function Lighthouse() {
   const config = {
     // موقعیت کل مجموعه (فانوس + نور)
-    groupPosition: [0, 0, -1000] as [number, number, number],
+    groupPosition: [0, 0, -4000] as [number, number, number],
 
     // رنگ نور
     lightColor: "#aaddff",
