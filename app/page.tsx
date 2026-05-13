@@ -3,7 +3,7 @@
 
 import * as THREE from "three";
 import { Canvas } from "@react-three/fiber";
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 import { PerspectiveCamera } from "@theatre/r3f";
 
 import Skybox from "./components/Skybox";
@@ -12,8 +12,11 @@ import OceanScene from "./components/OceanScene";
 import StaticStarsParticles from "./components/StaticStarsParticles";
 import TheatreSetup from "./components/TheatreSetup";
 import SceneTransition from "./components/SceneTransition";
+import SequenceController from "./components/SequenceController";
 
 export default function Home() {
+  const [startPlayback, setStartPlayback] = useState(false);
+
   return (
     <main className="relative w-full h-screen overflow-hidden">
       <Canvas
@@ -26,13 +29,18 @@ export default function Home() {
         className="z-10"
       >
         <TheatreSetup>
+          <SequenceController
+            isPlaying={startPlayback}
+            playbackRate={1 / 1.5}
+          />
           <Suspense fallback={null}>
             <SceneTransition
-              sequenceLength={29.35}
               holdMs={4800}
+              onHoldComplete={() => setStartPlayback(true)}
+              sequenceLength={29.35}
               exitBeforeSec={3}
               systemMovementSpeed={90}
-              startAfterSec={0.1}
+              startAfterSec={0.45}
             >
               <PerspectiveCamera
                 theatreKey="MainCamera"

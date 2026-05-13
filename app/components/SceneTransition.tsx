@@ -8,8 +8,10 @@ interface SceneTransitionProps {
   children: ReactNode;
   /** Total Theatre sequence length in seconds */
   sequenceLength?: number;
-  /** Ms to travel in the intro tunnel before starting the camera sequence (default 6500) */
+  /** Ms to travel in the intro tunnel before starting the camera sequence (default 4800) */
   holdMs?: number;
+  /** Callback fired when holdMs finishes */
+  onHoldComplete?: () => void;
   /** Seconds AFTER sequence starts to begin the tunnel fade out */
   startAfterSec?: number;
   /** Seconds before sequence end to trigger exit tunnel (default 2) */
@@ -21,7 +23,8 @@ interface SceneTransitionProps {
 export default function SceneTransition({
   children,
   sequenceLength = 29.35,
-  holdMs = 6500,
+  holdMs = 4800,
+  onHoldComplete,
   startAfterSec = 3.5, // Tweak this so you see the light source before it fades!
   exitBeforeSec = 2,
   systemMovementSpeed = 80, // Tweak this to control the global ocean speed towards the camera
@@ -34,52 +37,35 @@ export default function SceneTransition({
 
     // Wait for the Theatre.js project to be fully ready
     project.ready.then(() => {
-      // Hold in the cloud tunnel initially
-      timeoutId = setTimeout(() => {
-        mainSheet.sequence.play({ iterationCount: 1 });
+      if (onHoldComplete) {
+        timeoutId = setTimeout(() => {
+          onHoldComplete();
+        }, holdMs);
+      }
 
-        // Constantly monitor the timeline position to toggle the tunnel
-        const syncTimeline = () => {
-          const pos = mainSheet.sequence.position;
+      // Constantly monitor the timeline position to toggle the tunnel
+      const syncTimeline = () => {
+        const pos = mainSheet.sequence.position;
 
-          // If we are in the middle part of the sequence, turn off the tunnel
-          if (pos >= startAfterSec && pos < sequenceLength - exitBeforeSec) {
-            setIsTunnelActive(false);
-          } else {
-            // Either at the very beginning or the very end
-            setIsTunnelActive(true);
-          }
-
-          rafRef.current = requestAnimationFrame(syncTimeline);
-        };
+        // If we are in the middle part of the sequence, turn off the tunnel
+        if (pos >= startAfterSec && pos < sequenceLength - exitBeforeSec) {
+          setIsTunnelActive(false);
+        } else {
+          // Either at the very beginning or the very end
+          setIsTunnelActive(true);
+        }
 
         rafRef.current = requestAnimationFrame(syncTimeline);
-      }, holdMs);
+      };
+
+      rafRef.current = requestAnimationFrame(syncTimeline);
     });
 
     return () => {
       clearTimeout(timeoutId);
       cancelAnimationFrame(rafRef.current);
     };
-  }, [holdMs, startAfterSec, sequenceLength, exitBeforeSec]);
-
-  // Handle spacebar to pause/play
-  useEffect(() => {
-    let playing = false;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.code !== "Space") return;
-      e.preventDefault();
-      if (playing) {
-        mainSheet.sequence.pause();
-        playing = false;
-      } else {
-        mainSheet.sequence.play({ iterationCount: 1 });
-        playing = true;
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [holdMs, onHoldComplete, startAfterSec, sequenceLength, exitBeforeSec]);
 
   return (
     <>
