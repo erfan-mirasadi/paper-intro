@@ -47,6 +47,12 @@ export default function SceneTransition({
       const syncTimeline = () => {
         const pos = mainSheet.sequence.position;
 
+        // DEVELOPMENT: Prevent reaching the end transition since the next scene isn't built yet.
+        // This avoids crashing or transitioning to a non-existent scene.
+        if (pos >= sequenceLength - exitBeforeSec - 0.05) {
+          mainSheet.sequence.pause();
+        }
+
         // If we are in the middle part of the sequence, turn off the tunnel
         if (pos >= startAfterSec && pos < sequenceLength - exitBeforeSec) {
           setIsTunnelActive(false);

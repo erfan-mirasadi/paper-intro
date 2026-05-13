@@ -203,6 +203,12 @@ export default function OceanScene() {
         scale={40}
         color={[0.2, 0.2, 0.2]}
       />
+      <Mountain2
+        position={[1300, 300, 11000]}
+        rotation={[0, Math.PI / 2, 0]}
+        scale={40}
+        color={[0.2, 0.2, 0.2]}
+      />
 
       {/* Distant Background Mountain (Replaces the old mountainTexture PNG and mists) */}
       <group
@@ -213,26 +219,29 @@ export default function OceanScene() {
         <Mountain2
           position={[0, 0, 0]}
           rotation={[0, 4, 0]}
-          scale={bgMountainScale * 2} // The original one you liked
+          scale={bgMountainScale * 1} // The original one you liked
           color={[mountainBrightness, mountainBrightness, mountainBrightness]}
           hasClouds={false}
-          hasFog={false}
+          receiveSceneFog={true}
+          sceneFogMultiplier={0.15}
         />
         <Mountain2
           position={[bgMountainSpread + 5500, 0, 0]}
           rotation={[0, 0, 0]}
-          scale={bgMountainScale * 1.8} // First extra one to the right
+          scale={bgMountainScale * 0.8} // First extra one to the right
           color={[mountainBrightness, mountainBrightness, mountainBrightness]}
           hasClouds={false}
-          hasFog={false}
+          receiveSceneFog={true}
+          sceneFogMultiplier={0.15}
         />
         <Mountain2
           position={[bgMountainSpread * 2.5, 0, 0]}
           rotation={[0, 0, 0]}
-          scale={bgMountainScale * 2.2} // Second extra one to the far right
+          scale={bgMountainScale * 1.2} // Second extra one to the far right
           color={[mountainBrightness, mountainBrightness, mountainBrightness]}
           hasClouds={false}
-          hasFog={false}
+          receiveSceneFog={true}
+          sceneFogMultiplier={0.15}
         />
       </group>
 

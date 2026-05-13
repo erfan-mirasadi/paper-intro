@@ -13,6 +13,7 @@ import TheatreSetup from "./components/TheatreSetup";
 import SceneTransition from "./components/SceneTransition";
 import SequenceController from "./components/SequenceController";
 import MusicPlayer from "./components/MusicPlayer";
+import AnimatedFog from "./components/AnimatedFog";
 
 export default function Home() {
   const [startPlayback, setStartPlayback] = useState(false);
@@ -29,11 +30,11 @@ export default function Home() {
         dpr={[1, 2]}
         className="z-10"
       >
-        <fogExp2 attach="fog" args={["#030507", 0.0003]} />
+        <AnimatedFog color="#030507" baseDensity={0.0004} maxDensity={0.003} />
         <TheatreSetup>
           <SequenceController
             isPlaying={startPlayback}
-            playbackRate={1 / 1.5}
+            playbackRate={1 / 1.8}
           />
           <Suspense fallback={null}>
             <SceneTransition

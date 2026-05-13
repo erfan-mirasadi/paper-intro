@@ -14,7 +14,6 @@ interface CustomShader {
   fragmentShader: string;
 }
 
-
 export default function StaticStarsParticles() {
   const count = 200;
 
@@ -92,7 +91,7 @@ export default function StaticStarsParticles() {
   });
 
   return (
-    <points renderOrder={-1}>
+    <points renderOrder={1}>
       <bufferGeometry>
         <bufferAttribute attach="attributes-position" args={[positions, 3]} />
         <bufferAttribute attach="attributes-color" args={[colors, 3]} />
@@ -109,7 +108,7 @@ export default function StaticStarsParticles() {
         depthWrite={false}
         depthTest={true} // Explicitly tell the material to respect the depth of objects in front of it
         blending={THREE.AdditiveBlending}
-        fog={false}
+        fog={true}
         onBeforeCompile={(shader) => {
           // Initialize uniforms and store shader reference
           shader.uniforms.uTime = { value: 0 };
@@ -117,17 +116,49 @@ export default function StaticStarsParticles() {
 
           // Inject custom attributes and varyings into Vertex Shader
           shader.vertexShader = `
+            uniform float uTime;
             attribute float aRandom;
             varying float vRandom;
             ${shader.vertexShader}
-          `.replace(
-            "void main() {",
-            `
-            void main() {
-              // Pass random seed to Fragment Shader
-              vRandom = aRandom;
-            `,
-          );
+          `
+            .replace(
+              "void main() {",
+              `
+              void main() {
+                // Pass random seed to Fragment Shader
+                vRandom = aRandom;
+              `,
+            )
+            .replace(
+              "#include <begin_vertex>",
+              `
+              #include <begin_vertex>
+
+              // 1. Organic chaotic 3D Floating (X, Y, Z axes)
+              // Using different frequencies and amplitudes for a highly randomized feel
+              float floatX = sin(uTime * 2.1 + aRandom * 143.0) * (20.0 + aRandom * 35.0);
+              float floatY = cos(uTime * 1.8 + aRandom * 85.0)  * (25.0 + aRandom * 40.0);
+              float floatZ = sin(uTime * 1.5 + aRandom * 200.0) * (15.0 + aRandom * 30.0);
+
+              transformed.x += floatX;
+              transformed.y += floatY;
+
+              // 2. Fast movement towards the camera (+Z axis)
+              // Increased speed dramatically for the rushing effect
+              float forwardSpeed = 200.0 + (aRandom * 300.0); 
+              
+              // 3. Wrap-around logic to keep particles within the SPREAD_Z boundaries
+              // SPREAD_Z is 8000.0. We divide by 2.0 to handle the -4000 to 4000 range perfectly.
+              float spreadZ = 8000.0;
+              float halfSpreadZ = spreadZ / 2.0;
+              
+              // Calculate new Z position: base + floating + forward movement
+              float currentZ = position.z + floatZ + (uTime * forwardSpeed);
+              
+              // Wrap around Z axis so they infinitely come towards the screen
+              transformed.z = mod(currentZ + halfSpreadZ, spreadZ) - halfSpreadZ;
+              `,
+            );
 
           // Inject custom logic into Fragment Shader
           shader.fragmentShader = `

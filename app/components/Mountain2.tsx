@@ -18,7 +18,8 @@ interface Mountain2Props {
   scale?: number;
   color?: [number, number, number];
   hasClouds?: boolean;
-  hasFog?: boolean;
+  receiveSceneFog?: boolean;
+  sceneFogMultiplier?: number;
 }
 
 export default function Mountain2({
@@ -27,7 +28,8 @@ export default function Mountain2({
   scale = 1,
   color = [0.1, 0.1, 0.1],
   hasClouds = true,
-  hasFog = true,
+  receiveSceneFog = true,
+  sceneFogMultiplier = 1.0,
 }: Mountain2Props) {
   const gl = useThree((state) => state.gl);
   const [scene, setScene] = useState<THREE.Group | null>(null);
@@ -103,13 +105,32 @@ export default function Mountain2({
       if (obj.isMesh && obj.material) {
         // We only clone material if we are modifying it, but to be safe and avoid shared state bugs:
         obj.material = obj.material.clone();
-        obj.material.fog = hasFog;
+        obj.material.fog = receiveSceneFog;
+        
+        if (receiveSceneFog && sceneFogMultiplier !== 1.0) {
+          obj.material.onBeforeCompile = (shader: any) => {
+            shader.fragmentShader = shader.fragmentShader.replace(
+              `#include <fog_fragment>`,
+              `
+              #ifdef USE_FOG
+                #ifdef FOG_EXP2
+                  float customDensity = fogDensity * ${sceneFogMultiplier.toFixed(3)};
+                  float fogFactor = 1.0 - exp( - customDensity * customDensity * vFogDepth * vFogDepth );
+                #else
+                  float fogFactor = smoothstep( fogNear, fogFar, vFogDepth );
+                #endif
+                gl_FragColor.rgb = mix( gl_FragColor.rgb, fogColor, fogFactor );
+              #endif
+              `
+            );
+          };
+        }
         obj.material.needsUpdate = true;
       }
     });
 
     return clone;
-  }, [scene, hasFog]);
+  }, [scene, receiveSceneFog, sceneFogMultiplier]);
 
   if (!sceneClone) return null;
 

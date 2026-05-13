@@ -1,6 +1,6 @@
 "use client";
 
-import { Environment, Billboard, useTexture } from "@react-three/drei";
+import { Environment, useTexture } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { useMemo, useRef } from "react";
@@ -47,16 +47,12 @@ export function Moon() {
   );
 
   return (
-    <Billboard
-      follow={true}
-      lockX={false}
-      lockY={false}
-      lockZ={false}
+    <group
       position={[0, 0.2, -0.91]} // Brought lower towards the horizon
       scale={0.15}
     >
       {/* Background Glow: A large, soft atmospheric halo placed BEHIND the moon */}
-      <mesh position={[0, 0, 0.8]} scale={MOON_CONFIG.backgroundGlow.scale}>
+      <mesh position={[0, -0.2, 1]} scale={MOON_CONFIG.backgroundGlow.scale} renderOrder={-1}>
         <planeGeometry args={[1, 1]} />
         <shaderMaterial
           transparent={true}
@@ -90,7 +86,7 @@ export function Moon() {
       </mesh>
 
       {/* The Actual Moon Texture */}
-      <mesh rotation={[0, 0, Math.PI]}>
+      <mesh rotation={[0, 0, Math.PI]} renderOrder={-1}>
         <planeGeometry args={[1, 1]} />
         <shaderMaterial
           transparent={true}
@@ -136,7 +132,7 @@ export function Moon() {
       </mesh>
 
       {/* Foreground Glare: Math decoupled from scale to allow large halos! */}
-      <mesh position={[0, 0, 0]} scale={MOON_CONFIG.foregroundGlare.scale}>
+      <mesh position={[0, 0, 0]} scale={MOON_CONFIG.foregroundGlare.scale} renderOrder={-1}>
         <planeGeometry args={[1, 1]} />
         <shaderMaterial
           transparent={true}
@@ -179,7 +175,7 @@ export function Moon() {
           `}
         />
       </mesh>
-    </Billboard>
+    </group>
   );
 }
 
@@ -208,6 +204,7 @@ export default function Skybox() {
             position={[0, -0.15, 1.6]} // You can change this to move ONLY the sky background
             rotation={[0, Math.PI / 2, 0]}
             scale={[3, 0.8, 1]}
+            renderOrder={-2}
           >
             <sphereGeometry
               args={[1, 16, 16, Math.PI / 2, Math.PI, 0, Math.PI / 2]}
@@ -217,6 +214,7 @@ export default function Skybox() {
               side={THREE.BackSide}
               toneMapped={false}
               fog={false}
+              depthWrite={false}
             />
           </mesh>
           <Moon />
