@@ -14,7 +14,7 @@ interface CustomShader {
   fragmentShader: string;
 }
 
-export default function StaticStarsParticles() {
+export default function StarsParticles() {
   const count = 200;
 
   // Spread - keep center dense

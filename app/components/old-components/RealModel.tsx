@@ -3,16 +3,12 @@
 import { useMemo, useEffect, useState, useLayoutEffect } from "react";
 import { useThree } from "@react-three/fiber";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { KTX2Loader } from "three/examples/jsm/loaders/KTX2Loader.js";
-import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
+import { getSharedKTX2Loader, getSharedDRACOLoader } from "../SharedLoaders";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import * as THREE from "three";
 
 const gltfCache = new Map();
 
-let ktx2Loader: KTX2Loader | null = null;
-const dracoLoader = new DRACOLoader();
-dracoLoader.setDecoderPath("https://www.gstatic.com/draco/v1/decoders/");
 
 function PlaceholderMesh() {
   return (
@@ -55,17 +51,14 @@ export default function RealModel({
     console.log(`⬇️ DOWNLOADING: ${productTitle} from ${url}`);
     const loader = new GLTFLoader();
     
-    const draco = new DRACOLoader();
-    draco.setDecoderPath("https://www.gstatic.com/draco/v1/decoders/");
+    const draco = getSharedDRACOLoader();
     loader.setDRACOLoader(draco);
     
     if (MeshoptDecoder) {
       loader.setMeshoptDecoder(MeshoptDecoder);
     }
 
-    const ktx2 = new KTX2Loader();
-    ktx2.setTranscoderPath("https://cdn.jsdelivr.net/gh/mrdoob/three.js@dev/examples/jsm/libs/basis/");
-    ktx2.detectSupport(gl);
+    const ktx2 = getSharedKTX2Loader(gl);
     loader.setKTX2Loader(ktx2);
 
     loader.load(

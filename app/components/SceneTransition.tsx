@@ -34,17 +34,22 @@ export default function SceneTransition({
 
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
+    let isCancelled = false;
 
     // Wait for the Theatre.js project to be fully ready
     project.ready.then(() => {
+      if (isCancelled) return;
+
       if (onHoldComplete) {
         timeoutId = setTimeout(() => {
-          onHoldComplete();
+          if (!isCancelled) onHoldComplete();
         }, holdMs);
       }
 
       // Constantly monitor the timeline position to toggle the tunnel
       const syncTimeline = () => {
+        if (isCancelled) return;
+
         const pos = mainSheet.sequence.position;
 
         // DEVELOPMENT: Prevent reaching the end transition since the next scene isn't built yet.
@@ -68,6 +73,7 @@ export default function SceneTransition({
     });
 
     return () => {
+      isCancelled = true;
       clearTimeout(timeoutId);
       cancelAnimationFrame(rafRef.current);
     };

@@ -3,12 +3,12 @@
 
 import * as THREE from "three";
 import { Canvas } from "@react-three/fiber";
-import { Suspense, useState } from "react";
+import { Suspense, useState, useCallback } from "react";
 import ParallaxCamera from "./components/ParallaxCamera";
 import Skybox from "./components/Skybox";
 import NeonLinesScene from "./components/NeonLinesScene";
 import OceanScene from "./components/OceanScene";
-import StaticStarsParticles from "./components/StaticStarsParticles";
+import StaticStarsParticles from "./components/StarsParticles";
 import TheatreSetup from "./components/TheatreSetup";
 import SceneTransition from "./components/SceneTransition";
 import SequenceController from "./components/SequenceController";
@@ -17,6 +17,10 @@ import AnimatedFog from "./components/AnimatedFog";
 
 export default function Home() {
   const [startPlayback, setStartPlayback] = useState(false);
+
+  const handleHoldComplete = useCallback(() => {
+    setStartPlayback(true);
+  }, []);
 
   return (
     <main className="relative w-full h-screen overflow-hidden">
@@ -39,7 +43,7 @@ export default function Home() {
           <Suspense fallback={null}>
             <SceneTransition
               holdMs={4800}
-              onHoldComplete={() => setStartPlayback(true)}
+              onHoldComplete={handleHoldComplete}
               sequenceLength={29.35}
               exitBeforeSec={16}
               systemMovementSpeed={90}
