@@ -5,6 +5,8 @@ import { useFrame } from "@react-three/fiber";
 import { useTexture } from "@react-three/drei";
 import * as THREE from "three";
 
+import { baseCameraPosition, baseCameraQuaternion } from "./ParallaxCamera";
+
 interface CloudTunnelProps {
   /** true = tunnel fades in, false = tunnel fades out */
   isActive?: boolean;
@@ -80,10 +82,11 @@ export default function CloudTunnel({
   }, []);
 
   useFrame((state, delta) => {
-    // Lock master group to camera
+    // Lock master group to the BASE camera, so that user mouse parallax rotation 
+    // happens *inside* the tunnel!
     if (groupRef.current) {
-      groupRef.current.position.copy(state.camera.position);
-      groupRef.current.quaternion.copy(state.camera.quaternion);
+      groupRef.current.position.copy(baseCameraPosition);
+      groupRef.current.quaternion.copy(baseCameraQuaternion);
     }
 
     // Move the entire system (clouds + lights) towards the camera globally

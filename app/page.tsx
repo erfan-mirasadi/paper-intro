@@ -4,8 +4,7 @@
 import * as THREE from "three";
 import { Canvas } from "@react-three/fiber";
 import { Suspense, useState } from "react";
-import { PerspectiveCamera } from "@theatre/r3f";
-
+import ParallaxCamera from "./components/ParallaxCamera";
 import Skybox from "./components/Skybox";
 import NeonLinesScene from "./components/NeonLinesScene";
 import OceanScene from "./components/OceanScene";
@@ -38,18 +37,11 @@ export default function Home() {
               holdMs={4800}
               onHoldComplete={() => setStartPlayback(true)}
               sequenceLength={29.35}
-              exitBeforeSec={3}
+              exitBeforeSec={16}
               systemMovementSpeed={90}
               startAfterSec={0.45}
             >
-              <PerspectiveCamera
-                theatreKey="MainCamera"
-                makeDefault
-                position={[0, 20, 100]}
-                fov={45}
-                near={0.1}
-                far={20000}
-              />
+              <ParallaxCamera />
 
               <Skybox />
 
