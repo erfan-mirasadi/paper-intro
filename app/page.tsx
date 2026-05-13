@@ -30,7 +30,9 @@ export default function Home() {
             <SceneTransition
               sequenceLength={29.35}
               holdMs={4800}
-              exitBeforeSec={2}
+              exitBeforeSec={3}
+              systemMovementSpeed={90}
+              startAfterSec={0.1}
             >
               <PerspectiveCamera
                 theatreKey="MainCamera"

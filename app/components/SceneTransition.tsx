@@ -1,115 +1,81 @@
-// SceneTransition.tsx
-// ─────────────────────────────────────────────────────────────────────────────
-// Central controller for scene entry/exit transitions via CloudTunnel.
-//
-// Flow:
-//   [enter]         → tunnel visible, hold for `holdMs`
-//   [sequenceStart] → start camera sequence
-//   [fadeOut]       → wait `fadeDelayMs` after sequence starts, then fade out tunnel.
-//                     This allows the camera to be already moving when the fade happens.
-//   [playing]       → RAF polls sequence position
-//   [exit]          → `exitBeforeSec` before end, tunnel fades back in
-//
-// Usage (drop inside Canvas > TheatreSetup > Suspense):
-//   <SceneTransition sequenceLength={29.35}>
-//     {/* scene content */}
-//   </SceneTransition>
-// ─────────────────────────────────────────────────────────────────────────────
 "use client";
 
 import { useEffect, useRef, useState, ReactNode } from "react";
 import CloudTunnel from "./CloudTunnel";
 import { mainSheet, project } from "./TheatreSetup";
 
-type Phase = "enter" | "sequenceStart" | "fadeOut" | "playing" | "exit";
-
 interface SceneTransitionProps {
   children: ReactNode;
   /** Total Theatre sequence length in seconds */
   sequenceLength?: number;
-  /** Ms to travel in the intro tunnel before starting the camera sequence (default 3500) */
+  /** Ms to travel in the intro tunnel before starting the camera sequence (default 6500) */
   holdMs?: number;
-  /**
-   * Ms AFTER sequence starts to begin the tunnel fade out.
-   * 500 = camera moves for 0.5s inside the fully visible tunnel before it starts fading.
-   */
-  fadeDelayMs?: number;
+  /** Seconds AFTER sequence starts to begin the tunnel fade out */
+  startAfterSec?: number;
   /** Seconds before sequence end to trigger exit tunnel (default 2) */
   exitBeforeSec?: number;
+  /** Speed at which the entire cloud and light system moves towards the camera */
+  systemMovementSpeed?: number;
 }
 
 export default function SceneTransition({
   children,
   sequenceLength = 29.35,
-  holdMs         = 6500,  // Travel in clouds much longer initially
-  fadeDelayMs    = 500,   // Camera moves for 0.5s before fade out
-  exitBeforeSec  = 2,     // Bring clouds back 2s before end
+  holdMs = 6500,
+  startAfterSec = 3.5, // Tweak this so you see the light source before it fades!
+  exitBeforeSec = 2,
+  systemMovementSpeed = 80, // Tweak this to control the global ocean speed towards the camera
 }: SceneTransitionProps) {
-  const [phase, setPhase] = useState<Phase>("enter");
+  const [isTunnelActive, setIsTunnelActive] = useState(true);
   const rafRef = useRef<number>(0);
 
-  const isTunnelActive = phase === "enter" || phase === "sequenceStart" || phase === "exit";
-
-  // ── Phase 1: ENTER → SEQUENCE START after holdMs ──────────────────────────
   useEffect(() => {
-    if (phase !== "enter") return;
-    const t = setTimeout(() => setPhase("sequenceStart"), holdMs);
-    return () => clearTimeout(t);
-  }, [phase, holdMs]);
+    let timeoutId: NodeJS.Timeout;
 
-  // ── Phase 2: SEQUENCE START → play sequence, then FADE OUT ────────────────
-  useEffect(() => {
-    if (phase !== "sequenceStart") return;
-
+    // Wait for the Theatre.js project to be fully ready
     project.ready.then(() => {
-      mainSheet.sequence.play({ iterationCount: 1 });
-      
-      const t = setTimeout(() => {
-        setPhase("fadeOut");
-      }, fadeDelayMs);
+      // Hold in the cloud tunnel initially
+      timeoutId = setTimeout(() => {
+        mainSheet.sequence.play({ iterationCount: 1 });
 
-      return () => clearTimeout(t);
+        // Constantly monitor the timeline position to toggle the tunnel
+        const syncTimeline = () => {
+          const pos = mainSheet.sequence.position;
+
+          // If we are in the middle part of the sequence, turn off the tunnel
+          if (pos >= startAfterSec && pos < sequenceLength - exitBeforeSec) {
+            setIsTunnelActive(false);
+          } else {
+            // Either at the very beginning or the very end
+            setIsTunnelActive(true);
+          }
+
+          rafRef.current = requestAnimationFrame(syncTimeline);
+        };
+
+        rafRef.current = requestAnimationFrame(syncTimeline);
+      }, holdMs);
     });
-  }, [phase, fadeDelayMs]);
-
-  // ── Phase 3: FADE OUT to PLAYING ──────────────────────────────────────────
-  // Transition smoothly from fadeOut to playing state
-  useEffect(() => {
-    if (phase !== "fadeOut") return;
-    // We don't need a strict timer here, just move to playing state 
-    // so the RAF can start monitoring for the exit.
-    setPhase("playing");
-  }, [phase]);
-
-  // ── Phase 4: PLAYING → poll position, trigger exit ────────────────────────
-  useEffect(() => {
-    if (phase !== "playing") return;
-
-    const threshold = sequenceLength - exitBeforeSec;
-
-    const check = () => {
-      if (mainSheet.sequence.position >= threshold) {
-        setPhase("exit");
-        return; // stop polling
-      }
-      rafRef.current = requestAnimationFrame(check);
-    };
-
-    rafRef.current = requestAnimationFrame(check);
 
     return () => {
+      clearTimeout(timeoutId);
       cancelAnimationFrame(rafRef.current);
     };
-  }, [phase, sequenceLength, exitBeforeSec]);
+  }, [holdMs, startAfterSec, sequenceLength, exitBeforeSec]);
 
-  // ── Dev: Space = pause / resume ───────────────────────────────────────────
+  // Handle spacebar to pause/play
   useEffect(() => {
     let playing = false;
     const onKey = (e: KeyboardEvent) => {
       if (e.code !== "Space") return;
       e.preventDefault();
-      if (playing) { mainSheet.sequence.pause(); playing = false; }
-      else         { mainSheet.sequence.play({ iterationCount: 1 }); playing = true; }
+      if (playing) {
+        mainSheet.sequence.pause();
+        playing = false;
+      } else {
+        mainSheet.sequence.play({ iterationCount: 1 });
+        playing = true;
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -118,7 +84,10 @@ export default function SceneTransition({
   return (
     <>
       {children}
-      <CloudTunnel isActive={isTunnelActive} />
+      <CloudTunnel
+        isActive={isTunnelActive}
+        systemSpeed={systemMovementSpeed}
+      />
     </>
   );
 }

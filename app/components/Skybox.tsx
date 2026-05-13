@@ -16,8 +16,8 @@ const MOON_CONFIG = {
     scale: 2.5, // INCREASED SCALE so the plane is physically larger!
     innerFadeStart: 0.38, // Where the inner corona begins to form
     innerFadeEnd: 0.55, // Peak of the inner corona
-    outerFadeStart: 0.68, // Outer boundary of the corona
-    outerFadeEnd: 0.31, // Peak of the outer corona
+    outerFadeStart: 0.65, // Outer boundary of the corona
+    outerFadeEnd: 0.25, // Peak of the outer corona
   },
 };
 
@@ -56,12 +56,12 @@ export function Moon() {
       scale={0.15}
     >
       {/* Background Glow: A large, soft atmospheric halo placed BEHIND the moon */}
-      <mesh position={[0, 0, -0.05]} scale={MOON_CONFIG.backgroundGlow.scale}>
+      <mesh position={[0, 0, 0.8]} scale={MOON_CONFIG.backgroundGlow.scale}>
         <planeGeometry args={[1, 1]} />
         <shaderMaterial
           transparent={true}
           depthWrite={false}
-          depthTest={false}
+          depthTest={true}
           blending={THREE.AdditiveBlending}
           toneMapped={false}
           fog={false}
@@ -81,7 +81,7 @@ export function Moon() {
               float dist = distance(vUv, vec2(0.5));
               // Create a very smooth, expansive glow falloff
               float glow = smoothstep(uFadeEdge, uFadeCenter, dist);
-              glow = pow(glow, 1.5);
+              glow = pow(glow, 1.8);
               // Soft moonlight color (slightly blue/white)
               gl_FragColor = vec4(0.6, 0.75, 1.0, glow * 0.7);
             }
@@ -119,9 +119,15 @@ export function Moon() {
               // Crisper edge: only feathering the very outer rim so we don't lose moon craters
               float edgeAlpha = smoothstep(0.49, 0.46, dist);
               
+              // Convert texture color to grayscale (black and white)
+              float gray = dot(texColor.rgb, vec3(0.299, 0.587, 0.114));
+              // Make it slightly darker
+              gray *= 0.7;
+              vec3 bwColor = vec3(gray);
+
               // Subtle blend with atmosphere without washing it out completely
               vec3 atmosphereColor = vec3(0.85, 0.90, 0.98);
-              vec3 finalColor = mix(texColor.rgb, atmosphereColor, 0.05);
+              vec3 finalColor = mix(bwColor, atmosphereColor, 0.05);
               
               gl_FragColor = vec4(finalColor, texColor.a * edgeAlpha);
             }
@@ -130,12 +136,12 @@ export function Moon() {
       </mesh>
 
       {/* Foreground Glare: Math decoupled from scale to allow large halos! */}
-      <mesh position={[0, 0, 0.01]} scale={MOON_CONFIG.foregroundGlare.scale}>
+      <mesh position={[0, 0, 0]} scale={MOON_CONFIG.foregroundGlare.scale}>
         <planeGeometry args={[1, 1]} />
         <shaderMaterial
           transparent={true}
           depthWrite={false}
-          depthTest={false}
+          depthTest={true}
           blending={THREE.AdditiveBlending}
           toneMapped={false}
           fog={false}

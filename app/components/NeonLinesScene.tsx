@@ -182,7 +182,7 @@ export default function NeonLinesScene() {
     <group ref={cameraSyncGroupRef}>
       <group ref={linesGroupRef} position={[-3, -2, -5]}>
         {Array.from({ length: LINE_COUNT }).map((_, i) => (
-          <mesh key={i}>
+          <mesh key={i} renderOrder={999}>
             <tubeGeometry args={[curve, 64, LINE_RADIUS, 8, false]} />
             <shaderMaterial
               ref={(el) => {
@@ -197,6 +197,7 @@ export default function NeonLinesScene() {
               transparent={true}
               blending={THREE.AdditiveBlending}
               depthWrite={false}
+              depthTest={false}
             />
           </mesh>
         ))}
