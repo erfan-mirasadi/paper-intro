@@ -263,6 +263,7 @@ export default function CloudTunnel({
           opacity={1}
           depthTest={false}
           depthWrite={false}
+          fog={false}
         />
       </mesh>
 
@@ -292,6 +293,7 @@ export default function CloudTunnel({
             blending={THREE.AdditiveBlending}
             depthWrite={false}
             depthTest={false}
+            fog={false}
           />
         </mesh>
 
@@ -307,6 +309,7 @@ export default function CloudTunnel({
             blending={THREE.AdditiveBlending}
             depthWrite={false}
             depthTest={false}
+            fog={false}
           />
         </mesh>
 
@@ -322,6 +325,7 @@ export default function CloudTunnel({
               blending={THREE.AdditiveBlending}
               depthWrite={false}
               depthTest={false}
+              fog={false}
             />
           </mesh>
           <mesh
@@ -338,6 +342,7 @@ export default function CloudTunnel({
               blending={THREE.AdditiveBlending}
               depthWrite={false}
               depthTest={false}
+              fog={false}
             />
           </mesh>
         </group>
@@ -358,6 +363,7 @@ export default function CloudTunnel({
             depthTest={false}
             blending={THREE.NormalBlending}
             color="#ffffff"
+            fog={false}
           />
         </instancedMesh>
       </group>

@@ -7,7 +7,6 @@ import Island2 from "./Island2";
 import Lighthouse from "./Lighthouse";
 import StaticClouds from "./StaticClouds";
 import Mountain2 from "./Mountain2";
-import VolumetricSmoke from "./VolumetricSmoke";
 
 extend({ Water });
 
@@ -23,6 +22,12 @@ export default function OceanScene() {
   const pulseZ = useRef(2000); // Start far away / invisible
   // Adjust this percentage to control mountain darkness (0 = black, 1 = full brightness)
   const mountainBrightness = 0.1;
+
+  // Unified constant for scene depth/scale
+  const SCENE_SIZE = 25000; // Original was 40000. Reducing this brings everything "forward"
+  const HORIZON_RADIUS = SCENE_SIZE * 0.7;
+  const PULSE_LIMIT = SCENE_SIZE * -0.9;
+
   // Define our fixed colors outside to avoid recreation
   const darkWaterColor = useMemo(() => new THREE.Color(0x001e0f), []);
   const brightWaterColor = useMemo(() => new THREE.Color(0x00aaff), []);
@@ -50,24 +55,6 @@ export default function OceanScene() {
 
   // Load the textures
   const texture = useLoader(THREE.TextureLoader, "/textures/waternormals.jpg");
-  const mountainTexture = useLoader(THREE.TextureLoader, "/mountain.png");
-  const mistTexture = useLoader(THREE.TextureLoader, "/mist5.png");
-
-  useMemo(() => {
-    mountainTexture.wrapS = THREE.MirroredRepeatWrapping;
-    mountainTexture.wrapT = THREE.ClampToEdgeWrapping;
-    mountainTexture.repeat.set(12, 1);
-
-    mistTexture.wrapS = THREE.MirroredRepeatWrapping;
-    mistTexture.wrapT = THREE.ClampToEdgeWrapping;
-    mistTexture.repeat.set(4, 1);
-  }, [mountainTexture, mistTexture]);
-
-  const mistTextureBack = useMemo(() => {
-    const t = mistTexture.clone();
-    t.offset.set(0.5, 0); // Offset by 50% to look different from the front
-    return t;
-  }, [mistTexture]);
 
   const waterNormals = useMemo(() => {
     const t = texture.clone();
@@ -167,6 +154,12 @@ export default function OceanScene() {
   // Camera movement config
   const camStartPos = 4000;
 
+  // --- Distant Background Mountain Config ---
+  const bgMountainPos = [0, -25, -14000] as const;
+  const bgMountainStretch = [1.5, 1, 1] as const; // Very slight stretch just to ensure they overlap nicely
+  const bgMountainScale = 40; // Natural mountain scale
+  const bgMountainSpread = 5000; // Distance between the 3 mountains (tuned to fill the empty space to the right)
+
   // Animate the water, sweeping line, and camera
   useFrame((state, delta) => {
     // Water Shader Animation
@@ -179,7 +172,7 @@ export default function OceanScene() {
       }
 
       // Move the pulse away from the camera (negative Z direction)
-      if (pulseZ.current > -36000) {
+      if (pulseZ.current > PULSE_LIMIT) {
         pulseZ.current -= delta * 800; // Speed of the pulse
       }
 
@@ -203,7 +196,7 @@ export default function OceanScene() {
       <Island />
       <Island2 />
       <Lighthouse />
-      <StaticClouds />
+      <StaticClouds opacity={0.1} />
       <Mountain2
         position={[0, 500, 10000]}
         rotation={[0, 4, 0]}
@@ -211,139 +204,42 @@ export default function OceanScene() {
         color={[0.2, 0.2, 0.2]}
       />
 
-      {/* Distant static mist on all 4 sides of the ocean */}
-      {/* back */}
-      <group position={[0, -100, 5000]} scale={[40, 15, 2]}>
-        <VolumetricSmoke count={100} animate={false} renderOrder={-4} opacity={0.3} />
-      </group>
-      {/* FRONT */}
-      <group position={[0, -100, -19800]} scale={[120, 15, 1]}>
-        <VolumetricSmoke count={1120} animate={false} renderOrder={-4} opacity={0.3} />
-      </group>
-      {/* right */}
+      {/* Distant Background Mountain (Replaces the old mountainTexture PNG and mists) */}
       <group
-        position={[4500, -100, 0]}
-        scale={[70, 15, 1]}
-        rotation={[0, Math.PI / 2, 0]}
+        position={bgMountainPos}
+        scale={bgMountainStretch}
+        rotation={[0, 0, 0]}
       >
-        <VolumetricSmoke count={80} animate={false} renderOrder={-4} opacity={0.3} />
+        <Mountain2
+          position={[0, 0, 0]}
+          rotation={[0, 4, 0]}
+          scale={bgMountainScale * 2} // The original one you liked
+          color={[mountainBrightness, mountainBrightness, mountainBrightness]}
+          hasClouds={false}
+          hasFog={false}
+        />
+        <Mountain2
+          position={[bgMountainSpread + 5500, 0, 0]}
+          rotation={[0, 0, 0]}
+          scale={bgMountainScale * 1.8} // First extra one to the right
+          color={[mountainBrightness, mountainBrightness, mountainBrightness]}
+          hasClouds={false}
+          hasFog={false}
+        />
+        <Mountain2
+          position={[bgMountainSpread * 2.5, 0, 0]}
+          rotation={[0, 0, 0]}
+          scale={bgMountainScale * 2.2} // Second extra one to the far right
+          color={[mountainBrightness, mountainBrightness, mountainBrightness]}
+          hasClouds={false}
+          hasFog={false}
+        />
       </group>
-      {/* left */}
-      <group
-        position={[-3500, -100, 0]}
-        scale={[40, 15, 1]}
-        rotation={[0, Math.PI / 2, 0]}
-      >
-        <VolumetricSmoke count={80} animate={false} renderOrder={-4} opacity={0.3} />
-      </group>
-
-      <mesh position={[0, -25, 0]} rotation-y={Math.PI / 4} renderOrder={-3}>
-        {/* Slightly further than mountains (28200), taller for depth. Only on the facing edge. */}
-        <cylinderGeometry
-          args={[28200, 28200, 250, 1, 1, true, 0.5 * Math.PI, Math.PI / 2]}
-        />
-        <meshBasicMaterial
-          map={mistTextureBack}
-          transparent={true}
-          opacity={0.3}
-          side={THREE.BackSide}
-          depthWrite={false}
-          depthTest={true}
-          fog={false}
-          blending={THREE.AdditiveBlending}
-          onBeforeCompile={(shader) => {
-            shader.vertexShader = `
-              varying vec3 vWorldPos;
-              ${shader.vertexShader}
-            `.replace(
-              "#include <worldpos_vertex>",
-              `
-              #include <worldpos_vertex>
-              vWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
-              `,
-            );
-            shader.fragmentShader = `
-              varying vec3 vWorldPos;
-              ${shader.fragmentShader}
-            `.replace(
-              "gl_FragColor = vec4( outgoingLight, diffuseColor.a );",
-              `
-              // Fade out at top and bottom (different range for back mist)
-              float fade = smoothstep(-150.0, -50.0, vWorldPos.y) * (1.0 - smoothstep(100.0, 225.0, vWorldPos.y));
-              gl_FragColor = vec4( outgoingLight, diffuseColor.a * fade );
-              `,
-            );
-          }}
-        />
-      </mesh>
-
-      <mesh position={[0, -25, 0]} rotation-y={Math.PI / 4} renderOrder={-2}>
-        {/* Radius 28000 creates walls at ~19800 distance. Only on the facing edge. */}
-        <cylinderGeometry
-          args={[28000, 28000, 175, 1, 1, true, 0.5 * Math.PI, Math.PI / 2]}
-        />
-        <meshBasicMaterial
-          map={mountainTexture}
-          color={
-            new THREE.Color(
-              mountainBrightness,
-              mountainBrightness,
-              mountainBrightness,
-            )
-          }
-          transparent={true}
-          side={THREE.BackSide}
-          depthWrite={false}
-          depthTest={true}
-          fog={false}
-        />
-      </mesh>
-
-      <mesh position={[0, -25, 0]} rotation-y={Math.PI / 4} renderOrder={-1}>
-        {/* Slightly closer than mountains (27800), taller for better fading. Only on the facing edge. */}
-        <cylinderGeometry
-          args={[27800, 27800, 150, 1, 1, true, 0.5 * Math.PI, Math.PI / 2]}
-        />
-        <meshBasicMaterial
-          map={mistTexture}
-          transparent={true}
-          opacity={0.4}
-          side={THREE.BackSide}
-          depthWrite={false}
-          depthTest={true}
-          fog={false}
-          blending={THREE.AdditiveBlending}
-          onBeforeCompile={(shader) => {
-            shader.vertexShader = `
-              varying vec3 vWorldPos;
-              ${shader.vertexShader}
-            `.replace(
-              "#include <worldpos_vertex>",
-              `
-              #include <worldpos_vertex>
-              vWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
-              `,
-            );
-            shader.fragmentShader = `
-              varying vec3 vWorldPos;
-              ${shader.fragmentShader}
-            `.replace(
-              "gl_FragColor = vec4( outgoingLight, diffuseColor.a );",
-              `
-              // Fade out at top and bottom of the cylinder height
-              // Cylinder is at y=-25 with height 150 (goes -100 to 50)
-              float fade = smoothstep(-100.0, -37.5, vWorldPos.y) * (1.0 - smoothstep(12.5, 50.0, vWorldPos.y));
-              gl_FragColor = vec4( outgoingLight, diffuseColor.a * fade );
-              `,
-            );
-          }}
-        />
-      </mesh>
 
       <group position={[0, -2, 0]}>
         <water
           ref={waterRef}
-          args={[new THREE.PlaneGeometry(40000, 40000), config]}
+          args={[new THREE.PlaneGeometry(SCENE_SIZE, SCENE_SIZE), config]}
           rotation-x={-Math.PI / 2}
           position={[0, 0, 0]}
           onPointerDown={(e) => {
@@ -353,7 +249,7 @@ export default function OceanScene() {
         />
 
         <mesh position={[0, -510, 0]}>
-          <boxGeometry args={[40000, 1000, 40000]} />
+          <boxGeometry args={[SCENE_SIZE, 1000, SCENE_SIZE]} />
           <meshBasicMaterial
             color={0x001220}
             transparent={true}

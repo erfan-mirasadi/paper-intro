@@ -7,7 +7,7 @@ import { KTX2Loader } from "three/examples/jsm/loaders/KTX2Loader.js";
 import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import * as THREE from "three";
-import StaticClouds from "./StaticClouds";
+// import StaticClouds from "./StaticClouds";
 import VolumetricSmoke from "./VolumetricSmoke";
 
 const gltfCache = new Map();
@@ -17,6 +17,8 @@ interface Mountain2Props {
   rotation?: [number, number, number];
   scale?: number;
   color?: [number, number, number];
+  hasClouds?: boolean;
+  hasFog?: boolean;
 }
 
 export default function Mountain2({
@@ -24,6 +26,8 @@ export default function Mountain2({
   rotation = [0, 0, 0],
   scale = 1,
   color = [0.1, 0.1, 0.1],
+  hasClouds = true,
+  hasFog = true,
 }: Mountain2Props) {
   const gl = useThree((state) => state.gl);
   const [scene, setScene] = useState<THREE.Group | null>(null);
@@ -93,8 +97,19 @@ export default function Mountain2({
 
   const sceneClone = useMemo(() => {
     if (!scene) return null;
-    return scene.clone();
-  }, [scene]);
+    const clone = scene.clone();
+    
+    clone.traverse((obj: any) => {
+      if (obj.isMesh && obj.material) {
+        // We only clone material if we are modifying it, but to be safe and avoid shared state bugs:
+        obj.material = obj.material.clone();
+        obj.material.fog = hasFog;
+        obj.material.needsUpdate = true;
+      }
+    });
+
+    return clone;
+  }, [scene, hasFog]);
 
   if (!sceneClone) return null;
 
@@ -105,7 +120,7 @@ export default function Mountain2({
       scale={scale}
     >
       <primitive object={sceneClone} />
-      <StaticClouds
+      {/* <StaticClouds
         count={190}
         spread={[200, 30, 50]}
         offset={[0, 26, 0]}
@@ -113,9 +128,9 @@ export default function Mountain2({
         renderOrder={-3}
         rotation={[0, (65 * Math.PI) / 180, 0]}
         opacity={0.05}
-      />
+      /> */}
       {/* Significantly thickened smoke concentrate */}
-      <VolumetricSmoke count={100} animate={true} renderOrder={10} />
+      {hasClouds && <VolumetricSmoke count={100} animate={true} renderOrder={10} />}
     </group>
   );
 }

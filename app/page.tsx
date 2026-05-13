@@ -29,6 +29,7 @@ export default function Home() {
         dpr={[1, 2]}
         className="z-10"
       >
+        <fogExp2 attach="fog" args={["#030507", 0.0003]} />
         <TheatreSetup>
           <SequenceController
             isPlaying={startPlayback}

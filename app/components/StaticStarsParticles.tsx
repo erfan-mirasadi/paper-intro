@@ -109,6 +109,7 @@ export default function StaticStarsParticles() {
         depthWrite={false}
         depthTest={true} // Explicitly tell the material to respect the depth of objects in front of it
         blending={THREE.AdditiveBlending}
+        fog={false}
         onBeforeCompile={(shader) => {
           // Initialize uniforms and store shader reference
           shader.uniforms.uTime = { value: 0 };

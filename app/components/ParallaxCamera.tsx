@@ -31,21 +31,26 @@ export default function ParallaxCamera() {
       theatreCamRef.current instanceof THREE.PerspectiveCamera
     ) {
       let needsUpdate = false;
-      if (camera.fov !== theatreCamRef.current.fov) {
-        // eslint-disable-next-line
-        camera.fov = theatreCamRef.current.fov;
-        needsUpdate = true;
-      }
+      
+      // Stop syncing FOV from Theatre.js keyframes as requested
+      // if (camera.fov !== theatreCamRef.current.fov) {
+      //   camera.fov = theatreCamRef.current.fov;
+      //   needsUpdate = true;
+      // }
+
       if (camera.near !== theatreCamRef.current.near) {
         // eslint-disable-next-line
         camera.near = theatreCamRef.current.near;
         needsUpdate = true;
       }
-      if (camera.far !== theatreCamRef.current.far) {
+      
+      // Enforce far to always be 50000 and ignore Theatre.js keyframes for it
+      if (camera.far !== 50000) {
         // eslint-disable-next-line
-        camera.far = theatreCamRef.current.far;
+        camera.far = 50000;
         needsUpdate = true;
       }
+      
       if (needsUpdate) {
         camera.updateProjectionMatrix();
       }
@@ -73,7 +78,7 @@ export default function ParallaxCamera() {
       position={[0, 20, 100]}
       fov={45}
       near={0.1}
-      far={20000}
+      far={50000}
       makeDefault={false}
     />
   );
