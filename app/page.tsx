@@ -12,12 +12,14 @@ import StaticStarsParticles from "./components/StaticStarsParticles";
 import TheatreSetup from "./components/TheatreSetup";
 import SceneTransition from "./components/SceneTransition";
 import SequenceController from "./components/SequenceController";
+import MusicPlayer from "./components/MusicPlayer";
 
 export default function Home() {
   const [startPlayback, setStartPlayback] = useState(false);
 
   return (
     <main className="relative w-full h-screen overflow-hidden">
+      <MusicPlayer />
       <Canvas
         shadows
         gl={{
