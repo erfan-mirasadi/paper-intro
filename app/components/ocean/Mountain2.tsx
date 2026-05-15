@@ -3,13 +3,14 @@
 import { useMemo, useEffect, useState } from "react";
 import { useThree } from "@react-three/fiber";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { getSharedKTX2Loader, getSharedDRACOLoader } from "./SharedLoaders";
+import { getSharedKTX2Loader, getSharedDRACOLoader } from "../SharedLoaders";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import * as THREE from "three";
 // import StaticClouds from "./StaticClouds";
-import VolumetricSmoke from "./VolumetricSmoke";
+import VolumetricSmoke from "../environment/VolumetricSmoke";
 
 const gltfCache = new Map();
+const MOUNTAIN_URL = "/mountain-2.glb";
 
 interface Mountain2Props {
   position?: [number, number, number];
@@ -32,75 +33,34 @@ export default function Mountain2({
 }: Mountain2Props) {
   const gl = useThree((state) => state.gl);
   const [scene, setScene] = useState<THREE.Group | null>(null);
-  const url = "/mountain-2.glb";
+  const colorKey = color.join(",");
 
   useEffect(() => {
     let isMounted = true;
 
-    if (gltfCache.has(url)) {
-      Promise.resolve().then(() => {
-        if (isMounted) {
-          setScene(gltfCache.get(url));
-        }
-      });
-      return;
-    }
-
-    const loader = new GLTFLoader();
-
-    const draco = getSharedDRACOLoader();
-    loader.setDRACOLoader(draco);
-
-    if (MeshoptDecoder) {
-      loader.setMeshoptDecoder(MeshoptDecoder);
-    }
-
-    const ktx2 = getSharedKTX2Loader(gl);
-    loader.setKTX2Loader(ktx2);
-
-    loader.load(
-      url,
-      (gltf) => {
-        if (!isMounted) return;
-
-        gltf.scene.traverse((obj: any) => {
-          if (obj.isMesh) {
-            if (obj.material) {
-              obj.material = new THREE.MeshBasicMaterial({
-                color: new THREE.Color(...color),
-                map: obj.material.map,
-                transparent: true,
-                opacity: 1.0,
-                side: THREE.FrontSide,
-              });
-            }
-          }
-        });
-
-        gltfCache.set(url, gltf.scene);
-        if (isMounted) setScene(gltf.scene);
-      },
-      undefined,
-      (err) => {
+    loadMountainScene(gl, color)
+      .then((loadedScene) => {
+        if (isMounted) setScene(loadedScene);
+      })
+      .catch((err) => {
         console.error(`❌ Error loading mountain-2 model:`, err);
-      },
-    );
+      });
 
     return () => {
       isMounted = false;
     };
-  }, [gl, url]);
+  }, [gl, colorKey]);
 
   const sceneClone = useMemo(() => {
     if (!scene) return null;
     const clone = scene.clone();
-    
+
     clone.traverse((obj: any) => {
       if (obj.isMesh && obj.material) {
         // We only clone material if we are modifying it, but to be safe and avoid shared state bugs:
         obj.material = obj.material.clone();
         obj.material.fog = receiveSceneFog;
-        
+
         if (receiveSceneFog && sceneFogMultiplier !== 1.0) {
           obj.material.onBeforeCompile = (shader: any) => {
             shader.fragmentShader = shader.fragmentShader.replace(
@@ -115,7 +75,7 @@ export default function Mountain2({
                 #endif
                 gl_FragColor.rgb = mix( gl_FragColor.rgb, fogColor, fogFactor );
               #endif
-              `
+              `,
             );
           };
         }
@@ -145,7 +105,69 @@ export default function Mountain2({
         opacity={0.05}
       /> */}
       {/* Significantly thickened smoke concentrate */}
-      {hasClouds && <VolumetricSmoke count={100} animate={true} renderOrder={10} />}
+      {hasClouds && (
+        <VolumetricSmoke count={100} animate={true} renderOrder={10} />
+      )}
     </group>
   );
+}
+
+function getMountainCacheKey(color: [number, number, number]) {
+  return `${MOUNTAIN_URL}|${color.join(",")}`;
+}
+
+function loadMountainScene(
+  gl: THREE.WebGLRenderer,
+  color: [number, number, number],
+) {
+  const cacheKey = getMountainCacheKey(color);
+
+  if (gltfCache.has(cacheKey)) {
+    return Promise.resolve(gltfCache.get(cacheKey));
+  }
+
+  return new Promise<THREE.Group>((resolve, reject) => {
+    const loader = new GLTFLoader();
+
+    const draco = getSharedDRACOLoader();
+    loader.setDRACOLoader(draco);
+
+    if (MeshoptDecoder) {
+      loader.setMeshoptDecoder(MeshoptDecoder);
+    }
+
+    const ktx2 = getSharedKTX2Loader(gl);
+    loader.setKTX2Loader(ktx2);
+
+    loader.load(
+      MOUNTAIN_URL,
+      (gltf) => {
+        gltf.scene.traverse((obj: any) => {
+          if (obj.isMesh) {
+            if (obj.material) {
+              obj.material = new THREE.MeshBasicMaterial({
+                color: new THREE.Color(...color),
+                map: obj.material.map,
+                transparent: true,
+                opacity: 1.0,
+                side: THREE.FrontSide,
+              });
+            }
+          }
+        });
+
+        gltfCache.set(cacheKey, gltf.scene);
+        resolve(gltf.scene);
+      },
+      undefined,
+      (err) => reject(err),
+    );
+  });
+}
+
+export function preloadMountain2(
+  gl: THREE.WebGLRenderer,
+  color: [number, number, number],
+) {
+  return loadMountainScene(gl, color);
 }

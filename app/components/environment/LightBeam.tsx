@@ -1,22 +1,29 @@
 import { useEffect, useRef, useMemo } from "react";
 import * as THREE from "three";
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useThree, addEffect } from "@react-three/fiber";
 
-// --- Configuration ---
 const LINE_COUNT = 5;
 const LINE_GAP = 0.7;
 const LINE_RADIUS = 0.02;
-const GLOW_RADIUS = 0.14; // soft halo tube around each beam
+const GLOW_RADIUS = 0.14;
 
-// ─── Single source of truth for color ────────────────────────────────────────
-// Change this once to retheme beams + ALL scene lights.
-// 0xaae8ff = 🧊 Ice  |  0x88ffcc = 🌊 Cyan  |  0xff88dd = 🌸 Pink
 const BEAM_COLOR = 0xaae8ff;
-// ─────────────────────────────────────────────────────────────────────────────
 
-export default function NeonLinesScene() {
+export default function LightBeam() {
   const cameraSyncGroupRef = useRef<THREE.Group>(null);
   const linesGroupRef = useRef<THREE.Group>(null);
+
+  const camera = useThree((state) => state.camera);
+
+  useEffect(() => {
+    return addEffect(() => {
+      if (cameraSyncGroupRef.current && camera) {
+        cameraSyncGroupRef.current.position.copy(camera.position);
+        cameraSyncGroupRef.current.quaternion.copy(camera.quaternion);
+        cameraSyncGroupRef.current.updateMatrixWorld();
+      }
+    });
+  }, [camera]);
 
   const currentMouseX = useRef(0);
   const currentMouseY = useRef(0);
@@ -30,10 +37,9 @@ export default function NeonLinesScene() {
   const materialsRef = useRef<THREE.ShaderMaterial[]>([]);
   const glowMaterialsRef = useRef<THREE.ShaderMaterial[]>([]);
 
-  // --- Scene lights ---
-  const headLightRef = useRef<THREE.PointLight>(null); // 360° near fill
-  const fillLightRef = useRef<THREE.PointLight>(null); // long-range ambient
-  const spotLightRef = useRef<THREE.SpotLight>(null); // forward cone focus
+  const headLightRef = useRef<THREE.PointLight>(null);
+  const fillLightRef = useRef<THREE.PointLight>(null);
+  const spotLightRef = useRef<THREE.SpotLight>(null);
 
   const beamColor = useMemo(() => new THREE.Color(BEAM_COLOR), []);
 
@@ -47,12 +53,12 @@ export default function NeonLinesScene() {
     ],
     [],
   );
+
   const curve = useMemo(
     () => new THREE.CatmullRomCurve3(basePoints),
     [basePoints],
   );
 
-  // Uniforms shared across beam materials (ShaderMaterial clones them per instance)
   const sharedUniforms = useMemo(
     () => ({
       time: { value: 0 },
@@ -63,7 +69,6 @@ export default function NeonLinesScene() {
     [beamColor],
   );
 
-  // Separate uniform set for glow materials
   const glowUniforms = useMemo(
     () => ({
       time: { value: 0 },
@@ -74,7 +79,6 @@ export default function NeonLinesScene() {
     [beamColor],
   );
 
-  // --- Vertex shader (shared by beam + glow) ---
   const vertexShader = `
     uniform float time;
     uniform float lineIndex;
@@ -106,7 +110,6 @@ export default function NeonLinesScene() {
     }
   `;
 
-  // --- Beam fragment: sharp pulsing core ---
   const fragmentShader = `
     uniform vec3  color;
     uniform float time;
@@ -121,7 +124,6 @@ export default function NeonLinesScene() {
     }
   `;
 
-  // --- Glow fragment: soft outer halo ---
   const glowFragmentShader = `
     uniform vec3  color;
     uniform float time;
@@ -158,7 +160,6 @@ export default function NeonLinesScene() {
     currentMouseY.current +=
       (targetMouseY.current - currentMouseY.current) * 0.08;
 
-    // Click spring
     const force = (clickTarget.current - clickValue.current) * 12.0;
     clickVelocity.current += force * delta;
     clickVelocity.current *= Math.max(0, 1.0 - 1.5 * delta);
@@ -166,7 +167,6 @@ export default function NeonLinesScene() {
 
     const t = state.clock.getElapsedTime();
 
-    // Update beam + glow uniforms
     const updateMat = (mat: THREE.ShaderMaterial) => {
       if (!mat?.uniforms) return;
       if (mat.uniforms.time) mat.uniforms.time.value = t;
@@ -181,14 +181,7 @@ export default function NeonLinesScene() {
     materialsRef.current.forEach(updateMat);
     glowMaterialsRef.current.forEach(updateMat);
 
-    // Sync group to camera
-    if (cameraSyncGroupRef.current) {
-      cameraSyncGroupRef.current.position.copy(state.camera.position);
-      cameraSyncGroupRef.current.quaternion.copy(state.camera.quaternion);
-    }
-
     if (linesGroupRef.current) {
-      // Mouse follow
       const baseX = -3,
         baseY = -2;
       linesGroupRef.current.position.x +=
@@ -207,7 +200,6 @@ export default function NeonLinesScene() {
       linesGroupRef.current.rotation.x +=
         (currentMouseY.current * 0.1 - linesGroupRef.current.rotation.x) * 0.05;
 
-      // Breathing pulse
       const breath = 0.7 + 0.3 * Math.sin(t * 2.5);
       const flicker =
         1.0 + 0.07 * Math.sin(t * 7.7) + 0.03 * Math.sin(t * 13.3);
@@ -215,21 +207,29 @@ export default function NeonLinesScene() {
 
       const gp = linesGroupRef.current.position;
 
-      // PointLight: 360° near fill — low decay = even spread in all directions
       if (headLightRef.current) {
         headLightRef.current.position.set(gp.x, gp.y, gp.z);
         headLightRef.current.intensity = 4.0 * pulse;
       }
-      // PointLight: long-range soft ambient
+
       if (fillLightRef.current) {
         fillLightRef.current.position.set(gp.x, gp.y, gp.z - 15);
         fillLightRef.current.intensity = 2.0 * pulse;
       }
-      // SpotLight: forward-focused cone along beam direction (-Z)
-      if (spotLightRef.current) {
+
+      if (
+        spotLightRef.current &&
+        spotLightRef.current.target &&
+        cameraSyncGroupRef.current
+      ) {
         spotLightRef.current.position.set(gp.x, gp.y, gp.z + 2);
-        spotLightRef.current.target.position.set(gp.x, gp.y, gp.z - 80);
+
+        const targetWorldPos = new THREE.Vector3(gp.x, gp.y, gp.z - 80);
+        targetWorldPos.applyMatrix4(cameraSyncGroupRef.current.matrixWorld);
+
+        spotLightRef.current.target.position.copy(targetWorldPos);
         spotLightRef.current.target.updateMatrixWorld();
+
         spotLightRef.current.intensity = 7.0 * pulse;
       }
     }
@@ -237,12 +237,6 @@ export default function NeonLinesScene() {
 
   return (
     <group ref={cameraSyncGroupRef}>
-      {/*
-       * SCENE LIGHTS — all tinted with BEAM_COLOR
-       * headLight: decay=0.8  → near-omnidirectional, lights all sides evenly
-       * fillLight: decay=0.5  → gentle long-range ambient wrap
-       * spotLight: wide cone  → extra punch forward along beam direction
-       */}
       <pointLight
         ref={headLightRef}
         color={BEAM_COLOR}
@@ -272,7 +266,6 @@ export default function NeonLinesScene() {
       />
 
       <group ref={linesGroupRef} position={[-3, -2, -5]}>
-        {/* Glow halo — wide soft tubes, rendered under the beam core */}
         {Array.from({ length: LINE_COUNT }).map((_, i) => (
           <mesh key={`glow-${i}`} renderOrder={997}>
             <tubeGeometry args={[curve, 32, GLOW_RADIUS, 8, false]} />
@@ -292,7 +285,6 @@ export default function NeonLinesScene() {
           </mesh>
         ))}
 
-        {/* Beam core — sharp, pulsing */}
         {Array.from({ length: LINE_COUNT }).map((_, i) => (
           <mesh key={i} renderOrder={999}>
             <tubeGeometry args={[curve, 64, LINE_RADIUS, 8, false]} />

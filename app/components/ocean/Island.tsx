@@ -3,11 +3,12 @@
 import { useMemo, useEffect, useState } from "react";
 import { useThree } from "@react-three/fiber";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { getSharedKTX2Loader, getSharedDRACOLoader } from "./SharedLoaders";
+import { getSharedKTX2Loader, getSharedDRACOLoader } from "../SharedLoaders";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import * as THREE from "three";
 
 const gltfCache = new Map();
+const ISLAND_URL = "/island.glb";
 
 function PlaceholderMesh() {
   return null;
@@ -35,23 +36,12 @@ const INSTANCES = [
   },
 ];
 
-export default function Island() {
-  const gl = useThree((state) => state.gl);
-  const [scene, setScene] = useState<THREE.Group | null>(null);
-  const url = "/island.glb";
+function loadIslandScene(gl: THREE.WebGLRenderer) {
+  if (gltfCache.has(ISLAND_URL)) {
+    return Promise.resolve(gltfCache.get(ISLAND_URL));
+  }
 
-  useEffect(() => {
-    let isMounted = true;
-
-    if (gltfCache.has(url)) {
-      Promise.resolve().then(() => {
-        if (isMounted) {
-          setScene(gltfCache.get(url));
-        }
-      });
-      return;
-    }
-
+  return new Promise<THREE.Group>((resolve, reject) => {
     const loader = new GLTFLoader();
 
     const draco = getSharedDRACOLoader();
@@ -65,11 +55,8 @@ export default function Island() {
     loader.setKTX2Loader(ktx2);
 
     loader.load(
-      url,
+      ISLAND_URL,
       (gltf) => {
-        if (!isMounted) return;
-
-        // Process materials like in RealModel.tsx
         gltf.scene.traverse((obj: any) => {
           if (obj.isMesh) {
             obj.castShadow = true;
@@ -84,7 +71,9 @@ export default function Island() {
 
                 obj.material = new THREE.MeshBasicMaterial({
                   map: clonedMap,
-                  color: obj.material.color ? obj.material.color.clone().multiplyScalar(0.12) : new THREE.Color(0.12, 0.12, 0.12),
+                  color: obj.material.color
+                    ? obj.material.color.clone().multiplyScalar(0.12)
+                    : new THREE.Color(0.12, 0.12, 0.12),
                   transparent: true,
                   opacity:
                     obj.material.transmission > 0
@@ -95,7 +84,9 @@ export default function Island() {
                 });
               } else {
                 obj.material = new THREE.MeshBasicMaterial({
-                  color: obj.material.color ? obj.material.color.clone().multiplyScalar(0.12) : new THREE.Color(0.12, 0.12, 0.12),
+                  color: obj.material.color
+                    ? obj.material.color.clone().multiplyScalar(0.12)
+                    : new THREE.Color(0.12, 0.12, 0.12),
                   transparent: obj.material.transparent,
                   opacity:
                     obj.material.transmission > 0
@@ -109,19 +100,40 @@ export default function Island() {
           }
         });
 
-        gltfCache.set(url, gltf.scene);
-        setScene(gltf.scene);
+        gltfCache.set(ISLAND_URL, gltf.scene);
+        resolve(gltf.scene);
       },
       undefined,
-      (err) => {
-        console.error(`❌ Error loading island model:`, err);
-      },
+      (err) => reject(err),
     );
+  });
+}
+
+export function preloadIsland(gl: THREE.WebGLRenderer) {
+  return loadIslandScene(gl);
+}
+
+export default function Island() {
+  const gl = useThree((state) => state.gl);
+  const [scene, setScene] = useState<THREE.Group | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    loadIslandScene(gl)
+      .then((loadedScene) => {
+        if (isMounted) {
+          setScene(loadedScene);
+        }
+      })
+      .catch((err) => {
+        console.error(`❌ Error loading island model:`, err);
+      });
 
     return () => {
       isMounted = false;
     };
-  }, [gl, url]);
+  }, [gl]);
 
   // Memoize the clones so we don't clone on every render
   const islandClones = useMemo(() => {

@@ -3,11 +3,13 @@
 import { useEffect, useState, useRef, useMemo } from "react";
 import { useThree, useFrame } from "@react-three/fiber";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { getSharedKTX2Loader, getSharedDRACOLoader } from "./SharedLoaders";
+import { getSharedKTX2Loader, getSharedDRACOLoader } from "../SharedLoaders";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import * as THREE from "three";
 
 const gltfCache = new Map();
+const LIGHTHOUSE_URL = "/lighthouse-opt.glb";
+const BIRDS_URL = "/birds.glb";
 
 /**
  * The rotating light source for the lighthouse
@@ -92,45 +94,22 @@ function Birds({ position = [0, 400, 0] as [number, number, number] }) {
   const gl = useThree((state) => state.gl);
   const [scene, setScene] = useState<THREE.Group | null>(null);
   const groupRef = useRef<THREE.Group>(null!);
-  const url = "/birds.glb";
 
   useEffect(() => {
     let isMounted = true;
-    if (gltfCache.has(url)) {
-      Promise.resolve().then(() => {
-        if (isMounted) setScene(gltfCache.get(url).clone());
-      });
-      return;
-    }
 
-    const loader = new GLTFLoader();
-    const draco = getSharedDRACOLoader();
-    loader.setDRACOLoader(draco);
-
-    if (MeshoptDecoder) {
-      loader.setMeshoptDecoder(MeshoptDecoder);
-    }
-
-    const ktx2 = getSharedKTX2Loader(gl);
-    loader.setKTX2Loader(ktx2);
-
-    loader.load(
-      url,
-      (gltf) => {
-        if (!isMounted) return;
-        gltfCache.set(url, gltf.scene);
-        setScene(gltf.scene.clone());
-      },
-      undefined,
-      (err) => {
+    loadBirdsScene(gl)
+      .then((loadedScene) => {
+        if (isMounted) setScene(loadedScene.clone());
+      })
+      .catch((err) => {
         console.error("Error loading birds:", err);
-      },
-    );
+      });
 
     return () => {
       isMounted = false;
     };
-  }, [gl, url]);
+  }, [gl]);
 
   useFrame((state, delta) => {
     if (groupRef.current) {
@@ -183,52 +162,26 @@ export default function Lighthouse() {
   const gl = useThree((state) => state.gl);
   const [scene, setScene] = useState<THREE.Group | null>(null);
   const [error, setError] = useState<any>(null);
-  const url = "/lighthouse-opt.glb";
 
   useEffect(() => {
     let isMounted = true;
 
-    if (gltfCache.has(url)) {
-      Promise.resolve().then(() => {
-        if (isMounted) {
-          setScene(gltfCache.get(url));
-        }
-      });
-      return;
-    }
-
-    const loader = new GLTFLoader();
-
-    const draco = getSharedDRACOLoader();
-    loader.setDRACOLoader(draco);
-
-    if (MeshoptDecoder) {
-      loader.setMeshoptDecoder(MeshoptDecoder);
-    }
-
-    const ktx2 = getSharedKTX2Loader(gl);
-    loader.setKTX2Loader(ktx2);
-
-    loader.load(
-      url,
-      (gltf) => {
+    loadLighthouseScene(gl)
+      .then((loadedScene) => {
         if (!isMounted) return;
         console.log("✅ Lighthouse loaded successfully");
-        gltfCache.set(url, gltf.scene);
-        setScene(gltf.scene);
-      },
-      undefined,
-      (err) => {
+        setScene(loadedScene);
+      })
+      .catch((err) => {
         if (!isMounted) return;
         console.error(`❌ Error loading lighthouse:`, err);
         setError(err);
-      },
-    );
+      });
 
     return () => {
       isMounted = false;
     };
-  }, [gl, url]);
+  }, [gl]);
 
   if (error || !scene) return null;
 
@@ -248,4 +201,71 @@ export default function Lighthouse() {
       <Birds position={[0, -200, 0]} />
     </group>
   );
+}
+
+function loadBirdsScene(gl: THREE.WebGLRenderer) {
+  if (gltfCache.has(BIRDS_URL)) {
+    return Promise.resolve(gltfCache.get(BIRDS_URL));
+  }
+
+  return new Promise<THREE.Group>((resolve, reject) => {
+    const loader = new GLTFLoader();
+    const draco = getSharedDRACOLoader();
+    loader.setDRACOLoader(draco);
+
+    if (MeshoptDecoder) {
+      loader.setMeshoptDecoder(MeshoptDecoder);
+    }
+
+    const ktx2 = getSharedKTX2Loader(gl);
+    loader.setKTX2Loader(ktx2);
+
+    loader.load(
+      BIRDS_URL,
+      (gltf) => {
+        gltfCache.set(BIRDS_URL, gltf.scene);
+        resolve(gltf.scene);
+      },
+      undefined,
+      (err) => reject(err),
+    );
+  });
+}
+
+function loadLighthouseScene(gl: THREE.WebGLRenderer) {
+  if (gltfCache.has(LIGHTHOUSE_URL)) {
+    return Promise.resolve(gltfCache.get(LIGHTHOUSE_URL));
+  }
+
+  return new Promise<THREE.Group>((resolve, reject) => {
+    const loader = new GLTFLoader();
+
+    const draco = getSharedDRACOLoader();
+    loader.setDRACOLoader(draco);
+
+    if (MeshoptDecoder) {
+      loader.setMeshoptDecoder(MeshoptDecoder);
+    }
+
+    const ktx2 = getSharedKTX2Loader(gl);
+    loader.setKTX2Loader(ktx2);
+
+    loader.load(
+      LIGHTHOUSE_URL,
+      (gltf) => {
+        gltfCache.set(LIGHTHOUSE_URL, gltf.scene);
+        resolve(gltf.scene);
+      },
+      undefined,
+      (err) => reject(err),
+    );
+  });
+}
+
+export function preloadBirds(gl: THREE.WebGLRenderer) {
+  return loadBirdsScene(gl);
+}
+
+export function preloadLighthouse(gl: THREE.WebGLRenderer) {
+  return loadLighthouseScene(gl);
 }

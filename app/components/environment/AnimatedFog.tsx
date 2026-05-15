@@ -1,8 +1,9 @@
 "use client";
 
+import { useEffect } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { mainSheet } from "./TheatreSetup";
+import { mainSheet } from "../TheatreSetup";
 
 interface AnimatedFogProps {
   color?: string;
@@ -19,10 +20,18 @@ export default function AnimatedFog({
 }: AnimatedFogProps) {
   const { scene } = useThree();
 
-  // Create fog on mount
-  if (!scene.fog) {
+  // Create fog on mount, remove it cleanly on unmount.
+  // Without cleanup, the previous scene's fog bleeds into the next scene.
+  useEffect(() => {
     scene.fog = new THREE.FogExp2(color, maxDensity);
-  }
+
+    return () => {
+      // Remove fog when this scene unmounts so it doesn't leak into the next scene
+      scene.fog = null;
+    };
+  // Re-create fog when color changes (scene switch)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [color]);
 
   useFrame(() => {
     const pos = mainSheet.sequence.position;
@@ -33,7 +42,7 @@ export default function AnimatedFog({
     if (pos < twentyPercentTime) {
       // Interpolate from maxDensity down to baseDensity over the first 20%
       const progress = pos / twentyPercentTime;
-      // easing function for smoother transition (e.g., ease-out)
+      // Ease-out for smoother transition
       targetDensity = maxDensity - (maxDensity - baseDensity) * progress;
     }
 

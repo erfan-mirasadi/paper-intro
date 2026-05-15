@@ -1,61 +1,130 @@
-import { useRef, useMemo, useEffect } from "react";
+"use client";
+
+import { useRef, useMemo, useEffect, useState, useCallback } from "react";
 import * as THREE from "three";
 import { ThreeElement, useFrame, extend, useLoader } from "@react-three/fiber";
 import { Water } from "three/examples/jsm/objects/Water.js";
 import Island from "./Island";
 import Island2 from "./Island2";
 import Lighthouse from "./Lighthouse";
-import StaticClouds from "./StaticClouds";
+import StaticClouds from "../environment/StaticClouds";
 import Mountain2 from "./Mountain2";
+import ParallaxCamera from "../ParallaxCamera";
+import Skybox from "../environment/Skybox";
+import StaticStarsParticles from "../environment/StarsParticles";
+import TheatreSetup, { mainSheet } from "../TheatreSetup";
+import SceneTransition from "../core/SceneTransition";
+import SequenceController from "../core/SequenceController";
+import AnimatedFog from "../environment/AnimatedFog";
+import type { SceneProps } from "../core/SceneManager";
 
 extend({ Water });
 
-// Add types for the extended water element
 declare module "@react-three/fiber" {
   interface ThreeElements {
     water: ThreeElement<typeof Water>;
   }
 }
 
-export default function OceanScene() {
-  const waterRef = useRef<Water>(null!);
-  const pulseZ = useRef(2000); // Start far away / invisible
-  // Adjust this percentage to control mountain darkness (0 = black, 1 = full brightness)
-  const mountainBrightness = 0.1;
+export default function OceanScene({ onComplete }: SceneProps = {}) {
+  // ── Unified State Machine ──
+  // 'intro'   = in the cloud tunnel
+  // 'playing' = seeing the scene
+  // 'exiting' = cloud tunnel is back to transition out
+  const [sceneState, setSceneState] = useState<"intro" | "playing" | "exiting">(
+    "intro",
+  );
+  const [isReady, setIsReady] = useState(false);
 
-  // Unified constant for scene depth/scale
-  const SCENE_SIZE = 25000; // Original was 40000. Reducing this brings everything "forward"
-  const HORIZON_RADIUS = SCENE_SIZE * 0.7;
+  const handleIntroComplete = useCallback(() => {
+    setSceneState("playing");
+  }, []);
+
+  const handleSceneReady = useCallback(() => {
+    setIsReady(true);
+  }, []);
+
+  const handleRequestExit = useCallback(() => {
+    setSceneState("exiting");
+  }, []);
+
+  return (
+    <TheatreSetup>
+      <color attach="background" args={["#030507"]} />
+
+      {/* Play ONLY when sceneState is exactly 'playing'. If it exits, it stops naturally! */}
+      <SequenceController
+        isPlaying={sceneState === "playing"}
+        playbackRate={1 / 1.8}
+      />
+
+      <ParallaxCamera />
+
+      <SceneTransition
+        isReady={isReady}
+        isExiting={sceneState === "exiting"}
+        introHoldMs={4800}
+        exitHoldMs={8000} // Longer tunnel time before unmount
+        onIntroComplete={handleIntroComplete}
+        onExitComplete={onComplete}
+        systemMovementSpeed={90}
+      >
+        <OceanSceneContent
+          isPlaying={sceneState === "playing"}
+          onReady={handleSceneReady}
+          onRequestExit={handleRequestExit}
+        />
+      </SceneTransition>
+    </TheatreSetup>
+  );
+}
+
+interface OceanSceneContentProps {
+  isPlaying: boolean;
+  onReady: () => void;
+  onRequestExit: () => void;
+}
+
+function OceanSceneContent({
+  isPlaying,
+  onReady,
+  onRequestExit,
+}: OceanSceneContentProps) {
+  const waterRef = useRef<Water>(null!);
+  const pulseZ = useRef(2000);
+  const exitTriggered = useRef(false);
+  const mountainBrightness = 0.1;
+  const SCENE_SIZE = 25000;
   const PULSE_LIMIT = SCENE_SIZE * -0.9;
 
-  // Define our fixed colors outside to avoid recreation
+  useEffect(() => {
+    onReady();
+  }, [onReady]);
+
+  useEffect(() => {
+    if (!isPlaying) {
+      exitTriggered.current = false;
+    }
+  }, [isPlaying]);
+
   const darkWaterColor = useMemo(() => new THREE.Color(0x001e0f), []);
   const brightWaterColor = useMemo(() => new THREE.Color(0x00aaff), []);
-
-  // Calculate the exact world position of the Moon based on the Skybox group scale (7000)
-  // Position: [0, 0.2, -0.91] * 7000 = [0, 1400, -6370]
   const moonWorldPosition = useMemo(
     () => new THREE.Vector3(0, 1400, -6370),
     [],
   );
 
-  // ==========================================
-  // Moon reflection settings on water
-  // ==========================================
   const moonConfig = useMemo(
     () => ({
-      color: 0x5599cc, // Color of the moon reflection
-      direction: new THREE.Vector3(0, 0.15, -1).normalize(), // Initial fallback direction
-      shininess: "2500.0", // How narrow the light line is (higher = narrower)
-      brightness: "10.0", // Intensity of the moon light on water
+      color: 0x5599cc,
+      direction: new THREE.Vector3(0, 0.15, -1).normalize(),
+      shininess: "2500.0",
+      brightness: "10.0",
     }),
     [],
   );
-  // ==========================================
 
-  // Load the textures
   const texture = useLoader(THREE.TextureLoader, "/textures/waternormals.jpg");
-
   const waterNormals = useMemo(() => {
     const t = texture.clone();
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
@@ -69,7 +138,6 @@ export default function OceanScene() {
       waterNormals,
       sunDirection: moonConfig.direction,
       sunColor: moonConfig.color,
-
       waterColor: 0x00121a,
       distortionScale: 4.0,
       size: 1.0,
@@ -79,23 +147,24 @@ export default function OceanScene() {
     [waterNormals, moonConfig],
   );
 
-  // Inject custom shader logic for the sweeping line effect
+  const waterGeometry = useMemo(
+    () => new THREE.PlaneGeometry(SCENE_SIZE, SCENE_SIZE),
+    [SCENE_SIZE],
+  );
+
   useEffect(() => {
     if (!waterRef.current) return;
     const mat = waterRef.current.material;
 
-    // Initialize custom uniforms
     mat.uniforms.uPulseZ = { value: 2000.0 };
     mat.uniforms.uBaseColor = { value: darkWaterColor.clone() };
     mat.uniforms.uPulseColor = { value: brightWaterColor.clone() };
 
     mat.onBeforeCompile = (shader) => {
-      // Link our React uniforms to the Shader
       shader.uniforms.uPulseZ = mat.uniforms.uPulseZ;
       shader.uniforms.uBaseColor = mat.uniforms.uBaseColor;
       shader.uniforms.uPulseColor = mat.uniforms.uPulseColor;
 
-      // Inject uniform definitions at the top of the fragment shader
       shader.fragmentShader = `
         uniform float uPulseZ;
         uniform vec3 uBaseColor;
@@ -103,40 +172,28 @@ export default function OceanScene() {
         ${shader.fragmentShader}
       `;
 
-      // Calculate the sweep edge and dynamic color right after getting the noise
       shader.fragmentShader = shader.fragmentShader.replace(
         "vec4 noise = getNoise( worldPosition.xz * size );",
         `
-        // 1. Curved Shockwave (makes it look like a parabolic bow wave)
         float curve = (worldPosition.x * worldPosition.x) * 0.00015;
-        
-        // 2. High-frequency energy ripples on the pulse
         float energyRipple = sin(worldPosition.x * 0.05 + time * 4.0) * 15.0 
                            + cos(worldPosition.x * 0.1 - time * 3.0) * 10.0;
-
-        // Base distance to the pulse line (center leads, wings lag behind)
         float pulseZAtX = uPulseZ + curve + energyRipple;
         float distToPulse = abs(worldPosition.z - pulseZAtX);
-        
-        // 3. Multi-layered glow (Wide soft glow + Hot narrow core)
         float glowAlpha = smoothstep(300.0, 0.0, distToPulse);
         float coreAlpha = smoothstep(40.0, 0.0, distToPulse);
-        
-        // 4. Secondary 'echo' pulse following behind
-        float echoZ = pulseZAtX + 350.0; // lags 350 units behind
+        float echoZ = pulseZAtX + 350.0;
         float echoDist = abs(worldPosition.z - echoZ);
         float echoAlpha = smoothstep(80.0, 0.0, echoDist) * 0.4;
         
-        // Mix the colors: Base -> Glow -> Core -> Echo
         vec3 baseWithGlow = mix(uBaseColor, uPulseColor, glowAlpha);
-        vec3 withCore = mix(baseWithGlow, vec3(0.8, 0.95, 1.0), coreAlpha); // Bright cyan/white core
+        vec3 withCore = mix(baseWithGlow, vec3(0.8, 0.95, 1.0), coreAlpha); 
         vec3 dynamicWaterColor = mix(withCore, uPulseColor, echoAlpha);
 
         vec4 noise = getNoise( worldPosition.xz * size );
         `,
       );
 
-      // Replace shader default water color with our dynamic one, and apply moon brightness
       shader.fragmentShader = shader.fragmentShader
         .replace(" * waterColor", " * dynamicWaterColor")
         .replace("mix( waterColor,", "mix( dynamicWaterColor,")
@@ -146,42 +203,31 @@ export default function OceanScene() {
         );
     };
 
-    // Force Three.js to recompile the material with our new shader code
     mat.customProgramCacheKey = () => "pulse_water_shader";
     mat.needsUpdate = true;
   }, [darkWaterColor, brightWaterColor, moonConfig]);
 
-  // Camera movement config
-  const camStartPos = 4000;
-
-  // --- Distant Background Mountain Config ---
   const bgMountainPos = [0, -25, -14000] as const;
-  const bgMountainStretch = [1.5, 1, 1] as const; // Very slight stretch just to ensure they overlap nicely
-  const bgMountainScale = 40; // Natural mountain scale
-  const bgMountainSpread = 5000; // Distance between the 3 mountains (tuned to fill the empty space to the right)
+  const bgMountainStretch = [1.5, 1, 1] as const;
+  const bgMountainScale = 40;
+  const bgMountainSpread = 5000;
 
-  // Animate the water, sweeping line, and camera
   useFrame((state, delta) => {
-    // Water Shader Animation
     if (waterRef.current) {
       const mat = waterRef.current.material;
 
-      // Time animation for continuous wave movement
       if (mat.uniforms && mat.uniforms.time) {
         mat.uniforms.time.value += delta * 0.35;
       }
 
-      // Move the pulse away from the camera (negative Z direction)
       if (pulseZ.current > PULSE_LIMIT) {
-        pulseZ.current -= delta * 800; // Speed of the pulse
+        pulseZ.current -= delta * 800;
       }
 
-      // Ensure uniforms are injected before updating them
       if (mat.uniforms.uPulseZ) {
         mat.uniforms.uPulseZ.value = pulseZ.current;
       }
 
-      // SMART TRICK: Dynamically calculate the direction from camera to the moon's exact world position!
       if (mat.uniforms.sunDirection) {
         mat.uniforms.sunDirection.value
           .copy(moonWorldPosition)
@@ -191,8 +237,21 @@ export default function OceanScene() {
     }
   });
 
+  useFrame(() => {
+    if (!isPlaying || exitTriggered.current) return;
+
+    if (mainSheet.sequence.position >= 14.0) {
+      exitTriggered.current = true;
+      onRequestExit();
+    }
+  });
+
   return (
     <>
+      <Skybox />
+      <StaticStarsParticles />
+      <AnimatedFog color="#030507" baseDensity={0.0004} maxDensity={0.003} />
+
       <Island />
       <Island2 />
       <Lighthouse />
@@ -210,16 +269,11 @@ export default function OceanScene() {
         color={[0.2, 0.2, 0.2]}
       />
 
-      {/* Distant Background Mountain (Replaces the old mountainTexture PNG and mists) */}
-      <group
-        position={bgMountainPos}
-        scale={bgMountainStretch}
-        rotation={[0, 0, 0]}
-      >
+      <group position={bgMountainPos} scale={bgMountainStretch}>
         <Mountain2
           position={[0, 0, 0]}
           rotation={[0, 4, 0]}
-          scale={bgMountainScale * 1} // The original one you liked
+          scale={bgMountainScale * 1}
           color={[mountainBrightness, mountainBrightness, mountainBrightness]}
           hasClouds={false}
           receiveSceneFog={true}
@@ -227,8 +281,7 @@ export default function OceanScene() {
         />
         <Mountain2
           position={[bgMountainSpread + 5500, 0, 0]}
-          rotation={[0, 0, 0]}
-          scale={bgMountainScale * 0.8} // First extra one to the right
+          scale={bgMountainScale * 0.8}
           color={[mountainBrightness, mountainBrightness, mountainBrightness]}
           hasClouds={false}
           receiveSceneFog={true}
@@ -236,8 +289,7 @@ export default function OceanScene() {
         />
         <Mountain2
           position={[bgMountainSpread * 2.5, 0, 0]}
-          rotation={[0, 0, 0]}
-          scale={bgMountainScale * 1.2} // Second extra one to the far right
+          scale={bgMountainScale * 1.2}
           color={[mountainBrightness, mountainBrightness, mountainBrightness]}
           hasClouds={false}
           receiveSceneFog={true}
@@ -248,11 +300,10 @@ export default function OceanScene() {
       <group position={[0, -2, 0]}>
         <water
           ref={waterRef}
-          args={[new THREE.PlaneGeometry(SCENE_SIZE, SCENE_SIZE), config]}
+          args={[waterGeometry, config]}
           rotation-x={-Math.PI / 2}
           position={[0, 0, 0]}
           onPointerDown={(e) => {
-            // Start the pulse from the camera's Z position
             pulseZ.current = e.camera.position.z;
           }}
         />

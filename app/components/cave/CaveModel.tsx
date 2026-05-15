@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useMemo } from "react";
 import { useThree } from "@react-three/fiber";
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { getSharedKTX2Loader, getSharedDRACOLoader } from "../SharedLoaders";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import * as THREE from "three";
+import { useGLTF } from "@react-three/drei";
 
-const gltfCache = new Map();
+const CAVE_URL = "/assets/cave/cave-v01-opt.glb";
 
 interface CaveModelProps {
   position?: [number, number, number];
@@ -28,64 +28,14 @@ export default function CaveModel({
   sceneFogMultiplier = 1.5,
 }: CaveModelProps) {
   const gl = useThree((state) => state.gl);
-  const [scene, setScene] = useState<THREE.Group | null>(null);
-  const url = "/assets/cave/cave-v01-opt.glb";
 
-  useEffect(() => {
-    let isMounted = true;
-
-    if (gltfCache.has(url)) {
-      Promise.resolve().then(() => {
-        if (isMounted) setScene(gltfCache.get(url));
-      });
-      return;
-    }
-
-    const loader = new GLTFLoader();
-    const draco = getSharedDRACOLoader();
-    loader.setDRACOLoader(draco);
-
+  const { scene } = useGLTF(CAVE_URL, true, true, (loader: any) => {
+    loader.setKTX2Loader(getSharedKTX2Loader(gl));
+    loader.setDRACOLoader(getSharedDRACOLoader());
     if (MeshoptDecoder) {
       loader.setMeshoptDecoder(MeshoptDecoder);
     }
-
-    const ktx2 = getSharedKTX2Loader(gl);
-    loader.setKTX2Loader(ktx2);
-
-    loader.load(
-      url,
-      (gltf) => {
-        if (!isMounted) return;
-
-        gltf.scene.traverse((obj: any) => {
-          if (obj.isMesh && obj.material) {
-            // MeshStandardMaterial so point/beam lights work, but we'll patch
-            // the shader to ignore ambientLight (done in the clone phase below)
-            obj.material = new THREE.MeshStandardMaterial({
-              color: new THREE.Color(0.45, 0.42, 0.38),
-              map: obj.material.map,
-              roughness: 0.92,
-              metalness: 0.5,
-              transparent: true,
-              opacity: 1.0,
-              side: THREE.DoubleSide,
-            });
-          }
-        });
-
-        gltfCache.set(url, gltf.scene);
-        if (isMounted) setScene(gltf.scene);
-      },
-      undefined,
-      (err) => {
-        console.error(`❌ Error loading cave model:`, err);
-      },
-    );
-
-    return () => {
-      isMounted = false;
-    };
-  }, [gl, url]);
+  });
 
   const instances = useMemo(() => {
     if (!scene) return [];
@@ -96,7 +46,15 @@ export default function CaveModel({
 
       clone.traverse((obj: any) => {
         if (obj.isMesh && obj.material) {
-          obj.material = obj.material.clone();
+          obj.material = new THREE.MeshStandardMaterial({
+            color: new THREE.Color(0.45, 0.42, 0.38),
+            map: obj.material.map,
+            roughness: 0.92,
+            metalness: 0.5,
+            transparent: true,
+            opacity: 1.0,
+            side: THREE.DoubleSide,
+          });
           obj.material.fog = receiveSceneFog;
 
           // Always patch the shader: zero out all indirect diffuse light (ambient, hemisphere)
@@ -110,7 +68,7 @@ export default function CaveModel({
               #if defined( RE_IndirectDiffuse )
                 irradiance = vec3(0.0);
               #endif
-              `
+              `,
             );
 
             // Custom fog density multiplier (if needed)

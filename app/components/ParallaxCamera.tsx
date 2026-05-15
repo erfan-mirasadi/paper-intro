@@ -7,6 +7,7 @@ import * as THREE from "three";
 
 export const baseCameraQuaternion = new THREE.Quaternion();
 export const baseCameraPosition = new THREE.Vector3();
+export const baseCameraUpdatedAt = { value: 0 };
 
 export default function ParallaxCamera() {
   const theatreCamRef = useRef<THREE.PerspectiveCamera>(null);
@@ -14,12 +15,14 @@ export default function ParallaxCamera() {
   const currentOffset = useRef(new THREE.Vector2(0, 0));
   const targetOffset = useRef(new THREE.Vector2(0, 0));
 
-  useFrame(({ pointer, camera }) => {
+  useFrame((state) => {
+    const { pointer, camera } = state;
     if (!theatreCamRef.current) return;
 
     // Update the exported base transforms so other components (like CloudTunnel) can attach to them
     baseCameraPosition.copy(theatreCamRef.current.position);
     baseCameraQuaternion.copy(theatreCamRef.current.quaternion);
+    baseCameraUpdatedAt.value = state.clock.elapsedTime;
 
     // 1. Copy the exact transformations from Theatre's camera to the active camera
     camera.position.copy(theatreCamRef.current.position);
@@ -31,7 +34,7 @@ export default function ParallaxCamera() {
       theatreCamRef.current instanceof THREE.PerspectiveCamera
     ) {
       let needsUpdate = false;
-      
+
       // Stop syncing FOV from Theatre.js keyframes as requested
       // if (camera.fov !== theatreCamRef.current.fov) {
       //   camera.fov = theatreCamRef.current.fov;
@@ -43,14 +46,14 @@ export default function ParallaxCamera() {
         camera.near = theatreCamRef.current.near;
         needsUpdate = true;
       }
-      
+
       // Enforce far to always be 50000 and ignore Theatre.js keyframes for it
       if (camera.far !== 50000) {
         // eslint-disable-next-line
         camera.far = 50000;
         needsUpdate = true;
       }
-      
+
       if (needsUpdate) {
         camera.updateProjectionMatrix();
       }

@@ -3,11 +3,12 @@
 import { useMemo, useEffect, useState } from "react";
 import { useThree } from "@react-three/fiber";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { getSharedKTX2Loader, getSharedDRACOLoader } from "./SharedLoaders";
+import { getSharedKTX2Loader, getSharedDRACOLoader } from "../SharedLoaders";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import * as THREE from "three";
 
 const gltfCache = new Map();
+const ISLAND2_URL = "/mountain-sea.glb";
 
 function PlaceholderMesh() {
   return null;
@@ -34,23 +35,12 @@ const INSTANCES = [
   },
 ];
 
-export default function Island2() {
-  const gl = useThree((state) => state.gl);
-  const [scene, setScene] = useState<THREE.Group | null>(null);
-  const url = "/mountain-sea.glb";
+function loadIsland2Scene(gl: THREE.WebGLRenderer) {
+  if (gltfCache.has(ISLAND2_URL)) {
+    return Promise.resolve(gltfCache.get(ISLAND2_URL));
+  }
 
-  useEffect(() => {
-    let isMounted = true;
-
-    if (gltfCache.has(url)) {
-      Promise.resolve().then(() => {
-        if (isMounted) {
-          setScene(gltfCache.get(url));
-        }
-      });
-      return;
-    }
-
+  return new Promise<THREE.Group>((resolve, reject) => {
     const loader = new GLTFLoader();
 
     const draco = getSharedDRACOLoader();
@@ -64,10 +54,8 @@ export default function Island2() {
     loader.setKTX2Loader(ktx2);
 
     loader.load(
-      url,
+      ISLAND2_URL,
       (gltf) => {
-        if (!isMounted) return;
-
         gltf.scene.traverse((obj: any) => {
           if (obj.isMesh) {
             obj.castShadow = true;
@@ -82,7 +70,9 @@ export default function Island2() {
 
                 obj.material = new THREE.MeshBasicMaterial({
                   map: clonedMap,
-                  color: obj.material.color ? obj.material.color.clone().multiplyScalar(0.12) : new THREE.Color(0.12, 0.12, 0.12),
+                  color: obj.material.color
+                    ? obj.material.color.clone().multiplyScalar(0.12)
+                    : new THREE.Color(0.12, 0.12, 0.12),
                   transparent: true,
                   opacity:
                     obj.material.transmission > 0
@@ -93,7 +83,9 @@ export default function Island2() {
                 });
               } else {
                 obj.material = new THREE.MeshBasicMaterial({
-                  color: obj.material.color ? obj.material.color.clone().multiplyScalar(0.12) : new THREE.Color(0.12, 0.12, 0.12),
+                  color: obj.material.color
+                    ? obj.material.color.clone().multiplyScalar(0.12)
+                    : new THREE.Color(0.12, 0.12, 0.12),
                   transparent: obj.material.transparent,
                   opacity:
                     obj.material.transmission > 0
@@ -107,19 +99,40 @@ export default function Island2() {
           }
         });
 
-        gltfCache.set(url, gltf.scene);
-        setScene(gltf.scene);
+        gltfCache.set(ISLAND2_URL, gltf.scene);
+        resolve(gltf.scene);
       },
       undefined,
-      (err) => {
-        console.error(`❌ Error loading island-2 model:`, err);
-      },
+      (err) => reject(err),
     );
+  });
+}
+
+export function preloadIsland2(gl: THREE.WebGLRenderer) {
+  return loadIsland2Scene(gl);
+}
+
+export default function Island2() {
+  const gl = useThree((state) => state.gl);
+  const [scene, setScene] = useState<THREE.Group | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    loadIsland2Scene(gl)
+      .then((loadedScene) => {
+        if (isMounted) {
+          setScene(loadedScene);
+        }
+      })
+      .catch((err) => {
+        console.error(`❌ Error loading island-2 model:`, err);
+      });
 
     return () => {
       isMounted = false;
     };
-  }, [gl, url]);
+  }, [gl]);
 
   const islandClones = useMemo(() => {
     if (!scene) return [];

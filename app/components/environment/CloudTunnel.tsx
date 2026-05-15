@@ -1,22 +1,32 @@
 "use client";
 
-import { useRef, useMemo, useState, useEffect } from "react";
+import { useRef, useMemo, useState, useEffect, useCallback } from "react";
 import { useFrame } from "@react-three/fiber";
 import { useTexture } from "@react-three/drei";
 import * as THREE from "three";
 
-import { baseCameraPosition, baseCameraQuaternion } from "./ParallaxCamera";
+import {
+  baseCameraPosition,
+  baseCameraQuaternion,
+  baseCameraUpdatedAt,
+} from "../ParallaxCamera";
+
+useTexture.preload("/smoke.png");
+useTexture.preload("/lensflare.png");
 
 interface CloudTunnelProps {
   /** true = tunnel fades in, false = tunnel fades out */
   isActive?: boolean;
   /** Speed at which the entire system (clouds + lights) moves towards camera */
   systemSpeed?: number;
+  /** External reset trigger to restart the tunnel from the beginning */
+  resetSignal?: number;
 }
 
 export default function CloudTunnel({
   isActive = true,
   systemSpeed = 80,
+  resetSignal = 0,
 }: CloudTunnelProps) {
   const smokeTexture = useTexture("/smoke.png");
   const lensFlareTexture = useTexture("/lensflare.png");
@@ -52,6 +62,8 @@ export default function CloudTunnel({
 
   const warpSpeedRef = useRef(1);
   const expansionRef = useRef(0);
+  const isFrozenRef = useRef(false);
+  const wasActiveRef = useRef(isActive);
 
   // More clouds, deeper tunnel
   const CLOUD_COUNT = 300;
@@ -61,8 +73,8 @@ export default function CloudTunnel({
 
   const [clouds, setClouds] = useState<any[]>([]);
 
-  useEffect(() => {
-    setClouds(
+  const createClouds = useCallback(
+    () =>
       Array.from({ length: CLOUD_COUNT }, () => {
         const r = Math.random() * 20 + 5;
         const a = Math.random() * Math.PI * 2;
@@ -78,15 +90,58 @@ export default function CloudTunnel({
           expandFactor: Math.random() * 3.0 + 2.0, // Majestic parting effect
         };
       }),
-    );
-  }, []);
+    [],
+  );
+
+  useEffect(() => {
+    setClouds(createClouds());
+  }, [createClouds]);
+
+  useEffect(() => {
+    if (systemGroupRef.current) {
+      systemGroupRef.current.position.z = 0;
+    }
+    warpSpeedRef.current = 1;
+    expansionRef.current = 0;
+    isFrozenRef.current = false;
+    setClouds(createClouds());
+  }, [resetSignal, createClouds]);
+
+  useEffect(() => {
+    const wasActive = wasActiveRef.current;
+
+    if (isActive) {
+      isFrozenRef.current = false;
+
+      if (!wasActive) {
+        if (systemGroupRef.current) {
+          systemGroupRef.current.position.z = 0;
+        }
+        warpSpeedRef.current = 1;
+        expansionRef.current = 0;
+        setClouds(createClouds());
+      }
+    }
+
+    wasActiveRef.current = isActive;
+  }, [isActive]);
 
   useFrame((state, delta) => {
-    // Lock master group to the BASE camera, so that user mouse parallax rotation 
-    // happens *inside* the tunnel!
+    if (!isActive && isFrozenRef.current) return;
+
+    // Prefer ParallaxCamera base transform when it's active; otherwise use the live camera
     if (groupRef.current) {
-      groupRef.current.position.copy(baseCameraPosition);
-      groupRef.current.quaternion.copy(baseCameraQuaternion);
+      const useBaseCamera =
+        state.clock.elapsedTime - baseCameraUpdatedAt.value < 0.1;
+      const sourcePosition = useBaseCamera
+        ? baseCameraPosition
+        : state.camera.position;
+      const sourceQuaternion = useBaseCamera
+        ? baseCameraQuaternion
+        : state.camera.quaternion;
+
+      groupRef.current.position.copy(sourcePosition);
+      groupRef.current.quaternion.copy(sourceQuaternion);
     }
 
     // Move the entire system (clouds + lights) towards the camera globally
@@ -132,18 +187,19 @@ export default function CloudTunnel({
     if (smokeMatRef.current) {
       smokeMatRef.current.opacity = THREE.MathUtils.lerp(
         smokeMatRef.current.opacity,
-        0.45 * targetFade,
+        0.52 * targetFade,
         cloudFadeSpeed,
       );
     }
 
-    // Calculate light appearance based on distance traveled
+    // Ramp flare visibility over travel distance. Keep thresholds shallow so short
+    // intros (e.g. CaveScene ~1.5s × ~80 speed ≈ z120) still show lens flare—old
+    // 30–70% window kept flares at 0 for the entire short tunnel.
     let lightAppearanceFade = 1;
     if (systemGroupRef.current) {
       const traveled = systemGroupRef.current.position.z;
-      // Start appearing at 30% of the tunnel depth, fully appeared at 70%
-      const threshold1 = TUNNEL_DEPTH * 0.3;
-      const threshold2 = TUNNEL_DEPTH * 0.7;
+      const threshold1 = TUNNEL_DEPTH * 0.06;
+      const threshold2 = TUNNEL_DEPTH * 0.42;
       lightAppearanceFade = THREE.MathUtils.clamp(
         (traveled - threshold1) / (threshold2 - threshold1),
         0,
@@ -178,6 +234,26 @@ export default function CloudTunnel({
         0.2 * lightTarget,
         lightFadeSpeed,
       );
+
+    const isFullyHidden =
+      !isActive &&
+      bgMatRef.current?.opacity !== undefined &&
+      smokeMatRef.current?.opacity !== undefined &&
+      coreMatRef.current?.opacity !== undefined &&
+      haloMatRef.current?.opacity !== undefined &&
+      flare1Ref.current?.opacity !== undefined &&
+      flare2Ref.current?.opacity !== undefined &&
+      bgMatRef.current.opacity < 0.01 &&
+      smokeMatRef.current.opacity < 0.01 &&
+      coreMatRef.current.opacity < 0.01 &&
+      haloMatRef.current.opacity < 0.01 &&
+      flare1Ref.current.opacity < 0.01 &&
+      flare2Ref.current.opacity < 0.01;
+
+    if (isFullyHidden) {
+      isFrozenRef.current = true;
+      return;
+    }
 
     // Light pulse fades smoothly
     if (lightRef.current) {
@@ -250,14 +326,14 @@ export default function CloudTunnel({
   return (
     <group ref={groupRef}>
       {/*
-       * White background sphere — camera-locked.
+       * Bright fog sphere — camera-locked (slightly off-white so smoke/flares read).
        * RenderOrder 100 + depthTest=false forces it to completely block the 3D scene.
        */}
       <mesh renderOrder={100}>
         <sphereGeometry args={[900, 32, 16]} />
         <meshBasicMaterial
           ref={bgMatRef}
-          color="#ffffff"
+          color="#cfd8e8"
           side={THREE.BackSide}
           transparent
           opacity={1}
@@ -352,6 +428,7 @@ export default function CloudTunnel({
           ref={meshRef}
           args={[undefined, undefined, CLOUD_COUNT]}
           renderOrder={105}
+          frustumCulled={false}
         >
           <planeGeometry args={[1, 1]} />
           <meshBasicMaterial
