@@ -6,6 +6,8 @@ const smokeVertexShader = `
   varying vec2 vUv;
   varying float vDistance;
   uniform float time;
+  uniform float uSpeedMultiplier;
+  uniform float uDriftMultiplier;
 
   void main() {
     vUv = uv;
@@ -15,10 +17,10 @@ const smokeVertexShader = `
     
     // Add smooth, slow 3D drifting movement (vertex animation) for zero-cost performance
     // Using the original position as a seed to offset the phase per particle
-    float speed = 0.3;
-    float driftX = sin(time * speed + basePosition.y * 0.2) * 8.0;
-    float driftY = cos(time * speed * 0.8 + basePosition.x * 0.2) * 4.0;
-    float driftZ = sin(time * speed * 0.6 + basePosition.z * 0.2) * 8.0;
+    float speed = 0.3 * uSpeedMultiplier;
+    float driftX = sin(time * speed + basePosition.y * 0.2) * 8.0 * uDriftMultiplier;
+    float driftY = cos(time * speed * 0.8 + basePosition.x * 0.2) * 4.0 * uDriftMultiplier;
+    float driftZ = sin(time * speed * 0.6 + basePosition.z * 0.2) * 8.0 * uDriftMultiplier;
     
     basePosition.x += driftX;
     basePosition.y += driftY;
@@ -90,42 +92,68 @@ const smokeFragmentShader = `
   }
 `;
 
-// --- SMOKE CONFIGURATION (Tune these values) ---
-const SMOKE_CONFIG = {
-  length: 250, // Tool (X-axis spread)
-  width: 50, // Arz (Z-axis spread)
-  height: 25, // Ertefa (Y-axis range)
-  yOffset: 5, // Vertical shift
-  minScale: 10, // Minimum particle scale
-  maxScale: 60, // Maximum particle scale
-};
-// ----------------------------------------------
-
 interface VolumetricSmokeProps {
   count?: number;
   animate?: boolean;
   renderOrder?: number;
   opacity?: number;
+  // --- SMOKE CONFIGURATION (per-scene overrides) ---
+  length?: number; // X-axis spread (default: 250)
+  width?: number; // Z-axis spread (default: 50)
+  height?: number; // Y-axis range  (default: 25)
+  yOffset?: number; // Vertical shift (default: 5)
+  minScale?: number; // Minimum particle scale (default: 10)
+  maxScale?: number; // Maximum particle scale (default: 60)
+  position?: [number, number, number];
+  rotation?: [number, number, number];
+  speedMultiplier?: number; // Adjusts animation speed (default: 1.0)
+  driftMultiplier?: number; // Adjusts how far particles drift (default: 1.0)
+  color?: string; // Smoke color (default: "#99aabb")
+  // -------------------------------------------------
 }
 
-export default function VolumetricSmoke({ count = 400, animate = false, renderOrder, opacity = 1.0 }: VolumetricSmokeProps) {
+export default function VolumetricSmoke({
+  count = 400,
+  animate = false,
+  renderOrder,
+  opacity = 1.0,
+  length = 250,
+  width = 50,
+  height = 25,
+  yOffset = 5,
+  minScale = 10,
+  maxScale = 60,
+  position = [0, 0, 0],
+  rotation = [0, 0, 0],
+  speedMultiplier = 1.0,
+  driftMultiplier = 1.0,
+  color = "#99aabb",
+}: VolumetricSmokeProps) {
   const meshRef = useRef<THREE.InstancedMesh>(null);
 
   const uniforms = useMemo(
     () => ({
       time: { value: 0 },
       // Muted smoke color
-      smokeColor: { value: new THREE.Color("#99aabb") },
+      smokeColor: { value: new THREE.Color(color) },
       uOpacity: { value: opacity },
+      uSpeedMultiplier: { value: speedMultiplier },
+      uDriftMultiplier: { value: driftMultiplier },
     }),
     [],
   );
 
   useEffect(() => {
     if (meshRef.current && meshRef.current.material) {
-      (meshRef.current.material as THREE.ShaderMaterial).uniforms.uOpacity.value = opacity;
+      const materialUniforms = (
+        meshRef.current.material as THREE.ShaderMaterial
+      ).uniforms;
+      materialUniforms.uOpacity.value = opacity;
+      materialUniforms.uSpeedMultiplier.value = speedMultiplier;
+      materialUniforms.uDriftMultiplier.value = driftMultiplier;
+      materialUniforms.smokeColor.value.set(color);
     }
-  }, [opacity]);
+  }, [opacity, speedMultiplier, driftMultiplier, color]);
 
   useEffect(() => {
     if (!meshRef.current) return;
@@ -133,17 +161,15 @@ export default function VolumetricSmoke({ count = 400, animate = false, renderOr
     const dummy = new THREE.Object3D();
 
     for (let i = 0; i < count; i++) {
-      // Distribute particles using SMOKE_CONFIG
-      const x = (Math.random() - 0.5) * SMOKE_CONFIG.length;
-      const z = (Math.random() - 0.5) * SMOKE_CONFIG.width;
-      const y = Math.random() * SMOKE_CONFIG.height + SMOKE_CONFIG.yOffset;
+      // Distribute particles using props (with defaults matching original SMOKE_CONFIG)
+      const x = (Math.random() - 0.5) * length;
+      const z = (Math.random() - 0.5) * width;
+      const y = Math.random() * height + yOffset;
 
       dummy.position.set(x, y, z);
 
-      // Scale range from SMOKE_CONFIG
-      const scale =
-        Math.random() * (SMOKE_CONFIG.maxScale - SMOKE_CONFIG.minScale) +
-        SMOKE_CONFIG.minScale;
+      // Scale range from props
+      const scale = Math.random() * (maxScale - minScale) + minScale;
       dummy.scale.set(scale, scale, scale);
       dummy.rotation.z = Math.random() * Math.PI * 2;
 
@@ -152,7 +178,7 @@ export default function VolumetricSmoke({ count = 400, animate = false, renderOr
     }
 
     meshRef.current.instanceMatrix.needsUpdate = true;
-  }, [count]);
+  }, [count, length, width, height, yOffset, minScale, maxScale]);
 
   useFrame((state) => {
     if (animate && meshRef.current && meshRef.current.material) {
@@ -167,6 +193,8 @@ export default function VolumetricSmoke({ count = 400, animate = false, renderOr
       args={[undefined, undefined, count]}
       renderOrder={renderOrder}
       frustumCulled={false}
+      position={position}
+      rotation={rotation}
     >
       <planeGeometry args={[1, 1]} />
       <shaderMaterial
