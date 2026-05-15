@@ -31,7 +31,6 @@ export default function MarbleFloor(props: any) {
           minDepthThreshold={0.9}
           maxDepthThreshold={1.2}
           depthToBlurRatioBias={0.2}
-          debug={0}
           distortion={0}
           transparent={true}
           opacity={1}
