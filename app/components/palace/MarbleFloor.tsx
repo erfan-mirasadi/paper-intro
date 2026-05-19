@@ -1,11 +1,19 @@
 "use client";
 
 import { useMemo } from "react";
+import type { ComponentProps } from "react";
 import { useTexture, MeshReflectorMaterial } from "@react-three/drei";
 import * as THREE from "three";
 
-export default function MarbleFloor(props: any) {
-  const marbleTexture = useTexture("/assets/cave/marble.png");
+interface MarbleFloorProps extends ComponentProps<"group"> {
+  ambientIntensity?: number;
+}
+
+export default function MarbleFloor({
+  ambientIntensity = 6.5,
+  ...props
+}: MarbleFloorProps) {
+  const marbleTexture = useTexture("/assets/cave/old/marble.png");
   useMemo(() => {
     marbleTexture.wrapS = marbleTexture.wrapT = THREE.RepeatWrapping;
     marbleTexture.repeat.set(40, 200);
@@ -14,7 +22,7 @@ export default function MarbleFloor(props: any) {
 
   return (
     <group {...props}>
-      <ambientLight intensity={6.5} />
+      <ambientLight intensity={ambientIntensity} />
       <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[80, 400]} />
         <MeshReflectorMaterial

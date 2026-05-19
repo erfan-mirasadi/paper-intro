@@ -25,14 +25,18 @@ interface TransitionProviderProps {
   children: ReactNode;
   initialActive?: boolean;
   defaultSystemSpeed?: number;
+  enableTunnel?: boolean;
 }
 
 export function TransitionProvider({
   children,
   initialActive = true,
   defaultSystemSpeed = 80,
+  enableTunnel = true,
 }: TransitionProviderProps) {
-  const [isTunnelActive, setIsTunnelActive] = useState(initialActive);
+  const [isTunnelActive, setIsTunnelActive] = useState(
+    enableTunnel && initialActive,
+  );
   const [systemSpeed, setSystemSpeed] = useState(defaultSystemSpeed);
   const [resetSignal, setResetSignal] = useState(0);
 
@@ -62,13 +66,15 @@ export function TransitionProvider({
   return (
     <TransitionContext.Provider value={value}>
       {children}
-      <Suspense fallback={null}>
-        <CloudTunnel
-          isActive={isTunnelActive}
-          systemSpeed={systemSpeed}
-          resetSignal={resetSignal}
-        />
-      </Suspense>
+      {enableTunnel ? (
+        <Suspense fallback={null}>
+          <CloudTunnel
+            isActive={isTunnelActive}
+            systemSpeed={systemSpeed}
+            resetSignal={resetSignal}
+          />
+        </Suspense>
+      ) : null}
     </TransitionContext.Provider>
   );
 }

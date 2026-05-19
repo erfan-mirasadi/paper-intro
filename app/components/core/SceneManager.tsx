@@ -8,15 +8,18 @@ import type { SceneId } from "./sceneConfig";
 import LightBeam from "../environment/LightBeam";
 import { TransitionProvider } from "./TransitionController";
 
-const IS_DEV_MODE = false;
-const TARGET_DEV_SCENE_ID: SceneId = "cave";
+const IS_DEV_MODE = true;
+const TARGET_DEV_SCENE_ID: SceneId = "palace";
 
 export interface SceneProps {
   onComplete?: (nextScene?: SceneId) => void;
 }
 
 export default function SceneManager() {
-  const [activeSceneId, setActiveSceneId] = useState<SceneId>("cave");
+  const [activeSceneId, setActiveSceneId] = useState<SceneId>("palace");
+  const isPalaceScene = IS_DEV_MODE
+    ? TARGET_DEV_SCENE_ID === "palace"
+    : activeSceneId === "palace";
 
   // Added handler to switch scenes dynamically or strictly via flow
   const handleSceneComplete = useCallback(
@@ -40,7 +43,7 @@ export default function SceneManager() {
   if (IS_DEV_MODE) {
     const DevScene = SCENES[TARGET_DEV_SCENE_ID];
     return (
-      <TransitionProvider>
+      <TransitionProvider enableTunnel={!isPalaceScene} initialActive={false}>
         <DevSceneLayer DevScene={DevScene} />
       </TransitionProvider>
     );
@@ -49,7 +52,7 @@ export default function SceneManager() {
   const ActiveScene = SCENES[activeSceneId];
 
   return (
-    <TransitionProvider>
+    <TransitionProvider enableTunnel={!isPalaceScene}>
       <SceneLayer ActiveScene={ActiveScene} onComplete={handleSceneComplete} />
     </TransitionProvider>
   );
