@@ -8,7 +8,7 @@ import type { SceneId } from "./sceneConfig";
 import LightBeam from "../environment/LightBeam";
 import { TransitionProvider } from "./TransitionController";
 
-const IS_DEV_MODE = true;
+const IS_DEV_MODE = false;
 const TARGET_DEV_SCENE_ID: SceneId = "cave";
 
 export interface SceneProps {
@@ -16,7 +16,7 @@ export interface SceneProps {
 }
 
 export default function SceneManager() {
-  const [activeSceneId, setActiveSceneId] = useState<SceneId>("ocean");
+  const [activeSceneId, setActiveSceneId] = useState<SceneId>("cave");
 
   // Added handler to switch scenes dynamically or strictly via flow
   const handleSceneComplete = useCallback(

@@ -9,8 +9,8 @@ const CaveScene = dynamic(() => import("../cave/CaveScene"), { ssr: false });
 export type SceneId = "ocean" | "cave";
 
 export const SCENES: Partial<Record<SceneId, any>> = {
-  // ocean: OceanScene,
   cave: CaveScene,
+  ocean: OceanScene,
 };
 /**
  * SCENE_FLOW defines the playback order of scenes.
@@ -18,8 +18,8 @@ export const SCENES: Partial<Record<SceneId, any>> = {
  * the transition logic and support non-linear paths in the future.
  */
 export const SCENE_FLOW: Partial<Record<SceneId, SceneId | null>> = {
-  // ocean: "cave",
-  cave: null,
+  cave: "ocean",
+  ocean: null,
 };
 
 export function preloadScenes() {

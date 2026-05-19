@@ -34,6 +34,11 @@ export default function CaveScene({ onComplete }: { onComplete?: () => void }) {
   const [isRevealed, setIsRevealed] = useState(false);
   const [isPlaying, setIsPlaying] = useState(true);
   const [introCompleted, setIntroCompleted] = useState(false);
+  const [isExiting, setIsExiting] = useState(false);
+
+  const handleExitTrigger = useCallback(() => {
+    setIsExiting(true);
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -78,9 +83,9 @@ export default function CaveScene({ onComplete }: { onComplete?: () => void }) {
   return (
     <SceneTransition
       isReady={isReady}
-      isExiting={false}
+      isExiting={isExiting}
       introHoldMs={3000}
-      exitHoldMs={0}
+      exitHoldMs={0} // Zamani ke tool mikeshe ta screen siah she (be ms). Negative numbers will break it!
       onIntroComplete={() => {
         setIntroCompleted(true);
       }}
@@ -89,7 +94,10 @@ export default function CaveScene({ onComplete }: { onComplete?: () => void }) {
       <SceneReadySignal onReady={handleSceneReady} />
       <SheetProvider sheet={caveSheet}>
         <group>
-          <CameraRig theatreCamRef={theatreCamRef} />
+          <CameraRig
+            theatreCamRef={theatreCamRef}
+            onExitTrigger={handleExitTrigger}
+          />
           <TheatrePerspectiveCamera
             theatreKey="Camera"
             ref={theatreCamRef}
@@ -117,7 +125,7 @@ export default function CaveScene({ onComplete }: { onComplete?: () => void }) {
           <DesertDust />
           <CenterDust />
 
-          <AnimatedFog color={"#c0a382"} maxDensity={0.015} />
+          <AnimatedFog color={"#c0a382"} maxDensity={0.025} />
           <Skybox
             image="/assets/cave/sunset.jpg"
             showMoon={false}
@@ -144,11 +152,14 @@ function SceneReadySignal({ onReady }: { onReady: () => void }) {
 
 function CameraRig({
   theatreCamRef,
+  onExitTrigger,
 }: {
   theatreCamRef: React.RefObject<THREE.PerspectiveCamera | null>;
+  onExitTrigger: () => void;
 }) {
   const currentOffset = useRef(new THREE.Vector2(0, 0));
   const targetOffset = useRef(new THREE.Vector2(0, 0));
+  const exitTriggeredRef = useRef(false);
 
   useFrame((state) => {
     const { pointer, camera } = state;
@@ -186,6 +197,22 @@ function CameraRig({
 
     camera.rotateY(currentOffset.current.x);
     camera.rotateX(currentOffset.current.y);
+
+    // ==========================================
+    // TAZNIMAT-E ZAMAN-E TRANSITION:
+    // In adad neshon mide ke dar kodom SANIEYE az animation transition shoro she.
+    // Mesle OceanScene ke rooye 14.0 gozashti, inja ham yek adad sabet midim.
+    // Khodet in adad ro taghir bede ta be zaman-e daghighi ke mikhay beresi!
+    const TRIGGER_POSITION = 7.5;
+    // ==========================================
+
+    if (!exitTriggeredRef.current) {
+      const pos = caveSheet.sequence.position;
+      if (pos >= TRIGGER_POSITION && pos > 0.1) {
+        exitTriggeredRef.current = true;
+        onExitTrigger();
+      }
+    }
   });
 
   return null;
