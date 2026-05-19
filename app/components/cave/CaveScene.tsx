@@ -1,75 +1,75 @@
 "use client";
-
-import { useRef, useState, useEffect, useCallback } from "react";
-import * as THREE from "three";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import { PerspectiveCamera } from "@react-three/drei";
+import * as THREE from "three";
+import { Stats } from "@react-three/drei";
+import { PerspectiveCamera as TheatrePerspectiveCamera } from "@theatre/r3f";
 import CaveModel from "./CaveModel";
-import CaveEntrance from "./CaveEntrance";
-import CavePillars from "./Pillars";
-import MarbleFloor from "./MarbleFloor";
-import VolumetricSmoke from "../environment/VolumetricSmoke";
 import AnimatedFog from "../environment/AnimatedFog";
 import SceneTransition from "../core/SceneTransition";
+import SweepRevealWrapper from "../environment/SweepRevealWrapper";
+import DesertDust from "./DesertDust";
+import CenterDust from "./CenterDust";
+import Skybox from "../environment/Skybox";
 
-// ─────────────────────────────────────────────
-// Cave fly-through camera.
-// ─────────────────────────────────────────────
-function TempCamera({
-  isExiting,
-  onReachEnd,
-}: {
-  isExiting: boolean;
-  onReachEnd: () => void;
-}) {
-  const cameraRef = useRef<THREE.PerspectiveCamera>(null);
-  const [isPaused, setIsPaused] = useState(false);
-  const hasTriggered = useRef(false);
+import { getProject } from "@theatre/core";
+import { SheetProvider } from "@theatre/r3f";
+import caveProjectState from "../../data/CaveProject.theatre-project-state.json";
+
+// import studio from "@theatre/studio";
+// import extension from "@theatre/r3f/dist/extension";
+
+// if (typeof window !== "undefined" && process.env.NODE_ENV === "development") {
+//   studio.initialize();
+//   studio.extend(extension);
+// }
+
+const caveProject = getProject("CaveProject", {
+  state: caveProjectState as any,
+});
+const caveSheet = caveProject.sheet("CaveScene");
+
+export default function CaveScene({ onComplete }: { onComplete?: () => void }) {
+  const [isReady, setIsReady] = useState(false);
+  const [isRevealed, setIsRevealed] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(true);
+  const [introCompleted, setIntroCompleted] = useState(false);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.code === "Space") {
-        setIsPaused((prev) => !prev);
+        e.preventDefault();
+        setIsPlaying((prev) => !prev);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  useFrame((state, delta) => {
-    // If the scene is transitioning out, STOP moving the camera
-    if (!cameraRef.current || isPaused || isExiting) return;
+  useEffect(() => {
+    // ADJUST CAMERA SPEED HERE (1 is normal speed, 0.5 is half speed, etc.)
+    const CAMERA_SPEED = 0.56;
 
-    cameraRef.current.position.z += delta * 8;
-
-    if (cameraRef.current.position.z >= 150 && !hasTriggered.current) {
-      hasTriggered.current = true;
-      onReachEnd();
+    if (introCompleted && isPlaying) {
+      caveSheet.sequence.play({ iterationCount: 1, rate: CAMERA_SPEED });
+    } else {
+      caveSheet.sequence.pause();
     }
-  });
+  }, [isPlaying, introCompleted]);
 
-  return (
-    <PerspectiveCamera
-      makeDefault
-      ref={cameraRef}
-      position={[0, 1, -48]}
-      rotation={[0, Math.PI, 0]}
-      fov={45}
-      near={0.1}
-      far={1000}
-    />
-  );
-}
+  useEffect(() => {
+    if (!introCompleted) {
+      caveSheet.sequence.position = 0;
+    }
+  }, [introCompleted]);
 
-export default function CaveScene({ onComplete }: { onComplete?: () => void }) {
-  const [sceneState, setSceneState] = useState<"intro" | "playing" | "exiting">(
-    "intro",
-  );
-  const [isReady, setIsReady] = useState(false);
-
-  const handleIntroComplete = useCallback(() => {
-    setSceneState("playing");
+  useEffect(() => {
+    return () => {
+      caveSheet.sequence.pause();
+    };
   }, []);
+
+  const theatreCamRef = useRef<THREE.PerspectiveCamera>(null);
 
   const handleSceneReady = useCallback(() => {
     setIsReady(true);
@@ -78,49 +78,58 @@ export default function CaveScene({ onComplete }: { onComplete?: () => void }) {
   return (
     <SceneTransition
       isReady={isReady}
-      isExiting={sceneState === "exiting"}
-      introHoldMs={1500}
-      exitHoldMs={9000}
-      onIntroComplete={handleIntroComplete}
+      isExiting={false}
+      introHoldMs={3000}
+      exitHoldMs={0}
+      onIntroComplete={() => {
+        setIntroCompleted(true);
+      }}
       onExitComplete={onComplete}
     >
       <SceneReadySignal onReady={handleSceneReady} />
-      <group>
-        <color attach="background" args={["#ffffff"]} />
+      <SheetProvider sheet={caveSheet}>
+        <group>
+          <CameraRig theatreCamRef={theatreCamRef} />
+          <TheatrePerspectiveCamera
+            theatreKey="Camera"
+            ref={theatreCamRef}
+            makeDefault={false}
+            position={[0, 1, -48]}
+            rotation={[0, Math.PI, 0]}
+            fov={45}
+            near={0.1}
+            far={10000}
+          />
 
-        <TempCamera
-          isExiting={sceneState === "exiting"}
-          onReachEnd={() => setSceneState("exiting")}
-        />
+          <Stats />
 
-        <CaveEntrance
-          position={[0.6, -0.5, 6]}
-          rotation={[0, Math.PI, 0]}
-          scale={1.8}
-        />
-        <MarbleFloor position={[0, 0.15, 203]} />
-        <CavePillars position={[0.6, -0.5, 10]} />
-        <CaveModel position={[0, 0, 0]} />
+          <SweepRevealWrapper
+            // epicenter={[0, 0, -100]}
+            maxRadius={300}
+            speed={60}
+            mode="overlay"
+            autoTriggerDelay={introCompleted ? 1000 : undefined}
+            onRevealStart={() => setIsRevealed(true)}
+          >
+            <CaveModel />
+          </SweepRevealWrapper>
 
-        <VolumetricSmoke
-          count={50}
-          animate={true}
-          renderOrder={10}
-          opacity={3}
-          length={45}
-          width={3}
-          height={0}
-          yOffset={5}
-          minScale={10}
-          maxScale={10}
-          position={[0, -3.5, -17]}
-          rotation={[0, Math.PI / 2, 0]}
-          speedMultiplier={0.2}
-          driftMultiplier={0.2}
-          color="#696969"
-        />
-        <AnimatedFog color="#ffffff" baseDensity={0.0004} maxDensity={0.04} />
-      </group>
+          <DesertDust />
+          <CenterDust />
+
+          <AnimatedFog color={"#c0a382"} maxDensity={0.015} />
+          <Skybox
+            image="/assets/cave/sunset.jpg"
+            showMoon={false}
+            environmentFile="/assets/cave/desert-HDR_2k.hdr"
+            skyPosition={[0, -0.76, 0]}
+            skyRotation={[0, -0.5, 0]}
+            skyScale={[3, 1, 3]}
+            distance={1}
+          />
+          <ambientLight intensity={isRevealed ? 1 : 0.1} />
+        </group>
+      </SheetProvider>
     </SceneTransition>
   );
 }
@@ -129,6 +138,55 @@ function SceneReadySignal({ onReady }: { onReady: () => void }) {
   useEffect(() => {
     onReady();
   }, [onReady]);
+
+  return null;
+}
+
+function CameraRig({
+  theatreCamRef,
+}: {
+  theatreCamRef: React.RefObject<THREE.PerspectiveCamera | null>;
+}) {
+  const currentOffset = useRef(new THREE.Vector2(0, 0));
+  const targetOffset = useRef(new THREE.Vector2(0, 0));
+
+  useFrame((state) => {
+    const { pointer, camera } = state;
+    if (!theatreCamRef.current) return;
+
+    camera.position.copy(theatreCamRef.current.position);
+    camera.quaternion.copy(theatreCamRef.current.quaternion);
+
+    if (
+      camera instanceof THREE.PerspectiveCamera &&
+      theatreCamRef.current instanceof THREE.PerspectiveCamera
+    ) {
+      let needsUpdate = false;
+      if (camera.near !== theatreCamRef.current.near) {
+        camera.near = theatreCamRef.current.near;
+        needsUpdate = true;
+      }
+      if (camera.far !== 10000) {
+        camera.far = 10000;
+        needsUpdate = true;
+      }
+      if (needsUpdate) {
+        camera.updateProjectionMatrix();
+      }
+    }
+
+    // Apply the Parallax offset based on mouse position
+    const maxPan = 0.4;
+    const maxTilt = 0.4;
+
+    targetOffset.current.x = -pointer.x * maxPan;
+    targetOffset.current.y = pointer.y * maxTilt;
+
+    currentOffset.current.lerp(targetOffset.current, 0.05);
+
+    camera.rotateY(currentOffset.current.x);
+    camera.rotateX(currentOffset.current.y);
+  });
 
   return null;
 }

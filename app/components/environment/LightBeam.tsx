@@ -1,29 +1,18 @@
 import { useEffect, useRef, useMemo } from "react";
 import * as THREE from "three";
-import { useFrame, useThree, addEffect } from "@react-three/fiber";
+import { useFrame } from "@react-three/fiber";
 
 const LINE_COUNT = 5;
 const LINE_GAP = 0.7;
 const LINE_RADIUS = 0.02;
 const GLOW_RADIUS = 0.14;
 
-const BEAM_COLOR = 0xaae8ff;
+export const BEAM_COLOR = 0xaae8ff;
 
 export default function LightBeam() {
-  const cameraSyncGroupRef = useRef<THREE.Group>(null);
+  // Main group that will forcefully attach itself to the active camera
+  const mainGroupRef = useRef<THREE.Group>(null);
   const linesGroupRef = useRef<THREE.Group>(null);
-
-  const camera = useThree((state) => state.camera);
-
-  useEffect(() => {
-    return addEffect(() => {
-      if (cameraSyncGroupRef.current && camera) {
-        cameraSyncGroupRef.current.position.copy(camera.position);
-        cameraSyncGroupRef.current.quaternion.copy(camera.quaternion);
-        cameraSyncGroupRef.current.updateMatrixWorld();
-      }
-    });
-  }, [camera]);
 
   const currentMouseX = useRef(0);
   const currentMouseY = useRef(0);
@@ -40,6 +29,9 @@ export default function LightBeam() {
   const headLightRef = useRef<THREE.PointLight>(null);
   const fillLightRef = useRef<THREE.PointLight>(null);
   const spotLightRef = useRef<THREE.SpotLight>(null);
+
+  // Dedicated Object3D to act as the SpotLight's target
+  const spotLightTarget = useMemo(() => new THREE.Object3D(), []);
 
   const beamColor = useMemo(() => new THREE.Color(BEAM_COLOR), []);
 
@@ -155,6 +147,17 @@ export default function LightBeam() {
   }, []);
 
   useFrame((state, delta) => {
+    // 1. Ensure the current active camera is added to the scene
+    if (state.camera.parent !== state.scene) {
+      state.scene.add(state.camera);
+    }
+
+    // 2. Imperatively attach our main group to the active camera
+    // This solves the issue of disappearing lights when scenes change!
+    if (mainGroupRef.current && mainGroupRef.current.parent !== state.camera) {
+      state.camera.add(mainGroupRef.current);
+    }
+
     currentMouseX.current +=
       (targetMouseX.current - currentMouseX.current) * 0.08;
     currentMouseY.current +=
@@ -184,6 +187,7 @@ export default function LightBeam() {
     if (linesGroupRef.current) {
       const baseX = -3,
         baseY = -2;
+
       linesGroupRef.current.position.x +=
         (baseX +
           currentMouseX.current * 1.5 -
@@ -207,6 +211,7 @@ export default function LightBeam() {
 
       const gp = linesGroupRef.current.position;
 
+      // Update lights locally
       if (headLightRef.current) {
         headLightRef.current.position.set(gp.x, gp.y, gp.z);
         headLightRef.current.intensity = 4.0 * pulse;
@@ -217,26 +222,19 @@ export default function LightBeam() {
         fillLightRef.current.intensity = 2.0 * pulse;
       }
 
-      if (
-        spotLightRef.current &&
-        spotLightRef.current.target &&
-        cameraSyncGroupRef.current
-      ) {
+      if (spotLightRef.current) {
         spotLightRef.current.position.set(gp.x, gp.y, gp.z + 2);
-
-        const targetWorldPos = new THREE.Vector3(gp.x, gp.y, gp.z - 80);
-        targetWorldPos.applyMatrix4(cameraSyncGroupRef.current.matrixWorld);
-
-        spotLightRef.current.target.position.copy(targetWorldPos);
-        spotLightRef.current.target.updateMatrixWorld();
-
+        spotLightTarget.position.set(gp.x, gp.y, gp.z - 80);
         spotLightRef.current.intensity = 7.0 * pulse;
       }
     }
   });
 
   return (
-    <group ref={cameraSyncGroupRef}>
+    <group ref={mainGroupRef}>
+      {/* Target object added naturally to the scene graph */}
+      <primitive object={spotLightTarget} />
+
       <pointLight
         ref={headLightRef}
         color={BEAM_COLOR}
@@ -263,6 +261,7 @@ export default function LightBeam() {
         decay={1}
         castShadow={false}
         position={[-3, -2, -3]}
+        target={spotLightTarget}
       />
 
       <group ref={linesGroupRef} position={[-3, -2, -5]}>

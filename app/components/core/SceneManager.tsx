@@ -8,7 +8,7 @@ import type { SceneId } from "./sceneConfig";
 import LightBeam from "../environment/LightBeam";
 import { TransitionProvider } from "./TransitionController";
 
-const IS_DEV_MODE = false;
+const IS_DEV_MODE = true;
 const TARGET_DEV_SCENE_ID: SceneId = "cave";
 
 export interface SceneProps {

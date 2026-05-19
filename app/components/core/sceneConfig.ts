@@ -8,8 +8,8 @@ const CaveScene = dynamic(() => import("../cave/CaveScene"), { ssr: false });
 
 export type SceneId = "ocean" | "cave";
 
-export const SCENES: Record<SceneId, any> = {
-  ocean: OceanScene,
+export const SCENES: Partial<Record<SceneId, any>> = {
+  // ocean: OceanScene,
   cave: CaveScene,
 };
 /**
@@ -17,8 +17,8 @@ export const SCENES: Record<SceneId, any> = {
  * By mapping a SceneId to the next SceneId, we can easily change
  * the transition logic and support non-linear paths in the future.
  */
-export const SCENE_FLOW: Record<SceneId, SceneId | null> = {
-  ocean: "cave",
+export const SCENE_FLOW: Partial<Record<SceneId, SceneId | null>> = {
+  // ocean: "cave",
   cave: null,
 };
 

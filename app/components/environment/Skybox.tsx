@@ -52,7 +52,11 @@ export function Moon() {
       scale={0.15}
     >
       {/* Background Glow: A large, soft atmospheric halo placed BEHIND the moon */}
-      <mesh position={[0, -0.2, 1]} scale={MOON_CONFIG.backgroundGlow.scale} renderOrder={-1}>
+      <mesh
+        position={[0, -0.2, 1]}
+        scale={MOON_CONFIG.backgroundGlow.scale}
+        renderOrder={-1}
+      >
         <planeGeometry args={[1, 1]} />
         <shaderMaterial
           transparent={true}
@@ -132,7 +136,11 @@ export function Moon() {
       </mesh>
 
       {/* Foreground Glare: Math decoupled from scale to allow large halos! */}
-      <mesh position={[0, 0, 0]} scale={MOON_CONFIG.foregroundGlare.scale} renderOrder={-1}>
+      <mesh
+        position={[0, 0, 0]}
+        scale={MOON_CONFIG.foregroundGlare.scale}
+        renderOrder={-1}
+      >
         <planeGeometry args={[1, 1]} />
         <shaderMaterial
           transparent={true}
@@ -179,8 +187,26 @@ export function Moon() {
   );
 }
 
-export default function Skybox() {
-  const skyTexture = useTexture("/night-6.jpg");
+interface SkyboxProps {
+  image?: string;
+  showMoon?: boolean;
+  environmentFile?: string;
+  skyPosition?: [number, number, number];
+  skyRotation?: [number, number, number];
+  skyScale?: [number, number, number];
+  distance?: number;
+}
+
+export default function Skybox({ 
+  image = "/night-6.jpg", 
+  showMoon = true,
+  environmentFile = "/kloppenheim_02_1k.hdr",
+  skyPosition = [0, -0.15, 1.6],
+  skyRotation = [0, Math.PI / 2, 0],
+  skyScale = [3, 0.8, 1],
+  distance = 6000
+}: SkyboxProps = {}) {
+  const skyTexture = useTexture(image);
   const groupRef = useRef<THREE.Group>(null);
 
   useFrame((state) => {
@@ -192,18 +218,18 @@ export default function Skybox() {
   return (
     <>
       <Environment
-        files="/kloppenheim_02_1k.hdr"
+        files={environmentFile}
         background={false}
         environmentIntensity={0.4}
       />
       <group ref={groupRef}>
         {/* Grouping both to the same center/origin and reducing scale by half to fix depth precision issues */}
-        <group scale={6000}>
+        <group scale={distance}>
           {/* High quality background mesh optimized for front-view only */}
           <mesh
-            position={[0, -0.15, 1.6]} // You can change this to move ONLY the sky background
-            rotation={[0, Math.PI / 2, 0]}
-            scale={[3, 0.8, 1]}
+            position={skyPosition} // You can change this to move ONLY the sky background
+            rotation={skyRotation}
+            scale={skyScale}
             renderOrder={-2}
           >
             <sphereGeometry
@@ -217,7 +243,7 @@ export default function Skybox() {
               depthWrite={false}
             />
           </mesh>
-          <Moon />
+          {showMoon && <Moon />}
         </group>
       </group>
     </>

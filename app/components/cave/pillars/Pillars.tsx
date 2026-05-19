@@ -3,7 +3,7 @@
 import { useRef, useEffect, useMemo } from "react";
 import * as THREE from "three";
 import { useThree } from "@react-three/fiber";
-import { getSharedKTX2Loader, getSharedDRACOLoader } from "../SharedLoaders";
+import { getSharedKTX2Loader, getSharedDRACOLoader } from "../../SharedLoaders";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import { useGLTF } from "@react-three/drei";
 
