@@ -2,22 +2,28 @@
 
 import { useFrame } from "@react-three/fiber";
 import { PerspectiveCamera as TheatrePerspectiveCamera } from "@theatre/r3f";
-import { useRef } from "react";
+import { useRef, useEffect } from "react";
 import * as THREE from "three";
 
 export const baseCameraQuaternion = new THREE.Quaternion();
 export const baseCameraPosition = new THREE.Vector3();
 export const baseCameraUpdatedAt = { value: 0 };
 
-export default function ParallaxCamera() {
+export default function ParallaxCamera({ isActive = true }: { isActive?: boolean }) {
   const theatreCamRef = useRef<THREE.PerspectiveCamera>(null);
+  const isActiveRef = useRef(isActive);
+  
+  // Using a manual ref sync for isActive
+  useEffect(() => {
+    isActiveRef.current = isActive;
+  }, [isActive]);
 
   const currentOffset = useRef(new THREE.Vector2(0, 0));
   const targetOffset = useRef(new THREE.Vector2(0, 0));
 
   useFrame((state) => {
     const { pointer, camera } = state;
-    if (!theatreCamRef.current) return;
+    if (!theatreCamRef.current || !isActiveRef.current) return;
 
     // Update the exported base transforms so other components (like CloudTunnel) can attach to them
     baseCameraPosition.copy(theatreCamRef.current.position);

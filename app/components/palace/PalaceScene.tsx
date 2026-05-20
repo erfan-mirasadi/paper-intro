@@ -1,102 +1,117 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { PerspectiveCamera } from "@react-three/drei";
-import { useFrame } from "@react-three/fiber";
+/**
+ * PalaceScene.tsx  —  "Museum Basement" architecture
+ * ──────────────────────────────────────────────────────────────────────────
+ * Always mounted.  isActive drives camera + guards useFrame.
+ * isVisible controls group.visible (zero GPU cost when hidden).
+ * ──────────────────────────────────────────────────────────────────────────
+ */
+
+import { useEffect, useMemo, useRef } from "react";
+import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import AnimatedFog from "../environment/AnimatedFog";
 import MarbleFloor from "./MarbleFloor";
 import PalaceModel from "./PalaceModel";
-import type { SceneProps } from "../core/SceneManager";
+import { requestTransition, onIntroComplete } from "../core/useSceneStore";
 
-export default function PalaceScene({ onComplete }: SceneProps = {}) {
-  const [isPlaying, setIsPlaying] = useState(true);
+interface PalaceSceneProps {
+  isActive: boolean;
+  isVisible: boolean;
+}
 
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.code !== "Space") return;
-      event.preventDefault();
-      setIsPlaying((prev) => !prev);
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
-
+export default function PalaceScene({ isActive, isVisible }: PalaceSceneProps) {
   return (
     <>
-      <color attach="background" args={["#ffffff"]} />
+      {/* Background color: only set when active to avoid conflicts */}
+      {isActive && <color attach="background" args={["#ffffff"]} />}
 
-      <Suspense fallback={null}>
-        <PalaceCamera isPlaying={isPlaying} />
+      {/* Three.js skips draw calls for visible=false but keeps VRAM intact */}
+      <group visible={isVisible}>
+        {/* AnimatedFog writes scene.fog globally — guard with isActive */}
+        {isActive && (
+          <AnimatedFog color="#ffffff" baseDensity={0.01} maxDensity={0.01} />
+        )}
 
-        <AnimatedFog color="#ffffff" baseDensity={0.01} maxDensity={0.01} />
+        {/* Camera rig: writes directly to state.camera — no competing camera mount */}
+        <PalaceCamera isActive={isActive} />
 
         <ambientLight intensity={0.6} />
-        <directionalLight
-          position={[10, 18, 30]}
-          intensity={2.2}
-          color="#ffffff"
-        />
-        <directionalLight
-          position={[-18, 12, 12]}
-          intensity={1.4}
-          color="#f8f4ee"
-        />
+        <directionalLight position={[10, 18, 30]} intensity={2.2} color="#ffffff" />
+        <directionalLight position={[-18, 12, 12]} intensity={1.4} color="#f8f4ee" />
 
         <PalaceModel position={[0, 0, 0]} />
         <MarbleFloor position={[0, -0.02, 0]} ambientIntensity={1.4} />
-      </Suspense>
+      </group>
     </>
   );
 }
 
-function PalaceCamera({ isPlaying }: { isPlaying: boolean }) {
-  const cameraRef = useRef<THREE.PerspectiveCamera>(null);
+// ── PalaceCamera ──────────────────────────────────────────────────────────
+// Writes directly to the global state.camera (the one persistent R3F camera)
+// so no competing camera object is ever mounted.
+// Completely idle (CPU-free) when !isActive.
+
+function PalaceCamera({ isActive }: { isActive: boolean }) {
+  const { camera } = useThree();
+  const isActiveRef = useRef(isActive);
+  useEffect(() => { isActiveRef.current = isActive; }, [isActive]);
+
   const progressRef = useRef(0);
   const currentOffset = useRef(new THREE.Vector2(0, 0));
   const targetOffset = useRef(new THREE.Vector2(0, 0));
-  const basePosition = useRef(new THREE.Vector3());
+  const exitTriggeredRef = useRef(false);
+  const introCompletedRef = useRef(false);
 
-  // Start further back and lower so the camera approaches from afar and tilts up.
   const start = useMemo(() => new THREE.Vector3(0, 3, -120), []);
-  const end = useMemo(() => new THREE.Vector3(0, 3, 50), []);
+  const end   = useMemo(() => new THREE.Vector3(0, 3, 50), []);
   const lookAtTarget = useMemo(() => new THREE.Vector3(0, 20, 200), []);
-  const travelDuration = 12;
+  const travelDuration = 12; // seconds
+
+  // Configure global camera for this scene once
+  useEffect(() => {
+    if (camera instanceof THREE.PerspectiveCamera) {
+      camera.fov = 75;
+      camera.near = 0.1;
+      camera.far = 10000;
+      camera.updateProjectionMatrix();
+    }
+  }, [camera]);
+
+  // Reset on deactivation so next visit starts clean
+  useEffect(() => {
+    if (!isActive) {
+      progressRef.current = 0;
+      exitTriggeredRef.current = false;
+    }
+  }, [isActive]);
 
   useFrame((state, delta) => {
-    if (!cameraRef.current) return;
+    // ── Guard: CPU-free when not active ───────────────────────────────
+    if (!isActiveRef.current) return;
 
-    if (isPlaying) {
-      progressRef.current = Math.min(
-        1,
-        progressRef.current + delta / travelDuration,
-      );
-    }
+    // Advance the dolly progress IMMEDIATELY so there is continuous motion
+    // while the transition is happening. No more pauses!
+    progressRef.current = Math.min(1, progressRef.current + delta / travelDuration);
 
-    basePosition.current.lerpVectors(start, end, progressRef.current);
-    cameraRef.current.position.copy(basePosition.current);
-    // Always orient the camera to look forward toward the target ahead
-    cameraRef.current.lookAt(lookAtTarget);
+    // ALWAYS update the camera position
+    camera.position.lerpVectors(start, end, progressRef.current);
+    camera.lookAt(lookAtTarget);
 
-    const maxPan = 0.25;
-    const maxTilt = 0.18;
-    targetOffset.current.x = -state.pointer.x * maxPan;
-    targetOffset.current.y = state.pointer.y * maxTilt;
+    // Mouse parallax
+    targetOffset.current.x = -state.pointer.x * 0.25;
+    targetOffset.current.y = state.pointer.y * 0.18;
     currentOffset.current.lerp(targetOffset.current, 0.05);
+    camera.rotateY(currentOffset.current.x);
+    camera.rotateX(currentOffset.current.y);
 
-    cameraRef.current.rotateY(currentOffset.current.x);
-    cameraRef.current.rotateX(currentOffset.current.y);
+    // Exit trigger: dolly completed
+    if (!exitTriggeredRef.current && progressRef.current >= 1.0) {
+      exitTriggeredRef.current = true;
+      requestTransition("tunnel", "ocean");
+    }
   });
 
-  return (
-    <PerspectiveCamera
-      makeDefault
-      ref={cameraRef}
-      position={[0, 3, -120]}
-      fov={75}
-      near={0.1}
-      far={10000}
-    />
-  );
+  return null;
 }

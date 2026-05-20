@@ -1,131 +1,123 @@
 "use client";
+
+/**
+ * CaveScene.tsx  —  "Museum Basement" architecture
+ * ──────────────────────────────────────────────────────────────────────────
+ * This scene is ALWAYS mounted.  All heavy Three.js objects live in VRAM
+ * permanently.  isActive controls camera/sequence logic; isVisible controls
+ * group.visible (Three.js skips draw calls but keeps GPU memory).
+ *
+ * Guards in useFrame: return early when !isActive to be CPU-free when hidden.
+ * ──────────────────────────────────────────────────────────────────────────
+ */
+
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { Stats } from "@react-three/drei";
 import { PerspectiveCamera as TheatrePerspectiveCamera } from "@theatre/r3f";
+import { SheetProvider } from "@theatre/r3f";
+import { getProject } from "@theatre/core";
 import CaveModel from "./CaveModel";
 import AnimatedFog from "../environment/AnimatedFog";
-import SceneTransition from "../core/SceneTransition";
 import SweepRevealWrapper from "../environment/SweepRevealWrapper";
 import DesertDust from "./DesertDust";
 import CenterDust from "./CenterDust";
 import Skybox from "../environment/Skybox";
-
-import { getProject } from "@theatre/core";
-import { SheetProvider } from "@theatre/r3f";
+import { requestTransition, onIntroComplete } from "../core/useSceneStore";
 import caveProjectState from "../../data/CaveProject.theatre-project-state.json";
-
-// import studio from "@theatre/studio";
-// import extension from "@theatre/r3f/dist/extension";
-
-// if (typeof window !== "undefined" && process.env.NODE_ENV === "development") {
-//   studio.initialize();
-//   studio.extend(extension);
-// }
 
 const caveProject = getProject("CaveProject", {
   state: caveProjectState as any,
 });
 const caveSheet = caveProject.sheet("CaveScene");
 
-export default function CaveScene({ onComplete }: { onComplete?: () => void }) {
-  const [isReady, setIsReady] = useState(false);
-  const [isRevealed, setIsRevealed] = useState(false);
+const TRIGGER_POSITION = 7.5;
+const CAMERA_SPEED = 0.56;
+
+interface CaveSceneProps {
+  isActive: boolean;  // controls camera rig, sequence, exit trigger
+  isVisible: boolean; // controls group.visible (Three.js draw-call skip)
+}
+
+export default function CaveScene({ isActive, isVisible }: CaveSceneProps) {
+  // Ref mirror for use inside useFrame / event-bus callbacks without stale closures
+  const isActiveRef = useRef(isActive);
+  useEffect(() => { isActiveRef.current = isActive; }, [isActive]);
+
   const [isPlaying, setIsPlaying] = useState(true);
-  const [introCompleted, setIntroCompleted] = useState(false);
-  const [isExiting, setIsExiting] = useState(false);
+  const [isRevealed, setIsRevealed] = useState(false);
 
-  const handleExitTrigger = useCallback(() => {
-    setIsExiting(true);
-  }, []);
+  const theatreCamRef = useRef<THREE.PerspectiveCamera>(null);
 
+  // ── Reset state when this scene becomes active again (loop) ────────
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.code === "Space") {
-        e.preventDefault();
-        setIsPlaying((prev) => !prev);
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+    if (isActive) {
+      // Reset for fresh activation (e.g. after ocean→cave loop)
+      setIsRevealed(false);
+      setIsPlaying(true);
+      caveSheet.sequence.position = 0;
+    } else {
+      // Freeze when hidden — CPU-free
+      caveSheet.sequence.pause();
+    }
+  }, [isActive]);
 
+  // ── Drive caveSheet sequence ───────────────────────────────────────
   useEffect(() => {
-    // ADJUST CAMERA SPEED HERE (1 is normal speed, 0.5 is half speed, etc.)
-    const CAMERA_SPEED = 0.56;
-
-    if (introCompleted && isPlaying) {
+    if (isPlaying) {
       caveSheet.sequence.play({ iterationCount: 1, rate: CAMERA_SPEED });
     } else {
       caveSheet.sequence.pause();
     }
-  }, [isPlaying, introCompleted]);
+  }, [isPlaying]);
 
+  // ── Spacebar pause / play (only while this scene is active) ────────
   useEffect(() => {
-    if (!introCompleted) {
-      caveSheet.sequence.position = 0;
-    }
-  }, [introCompleted]);
-
-  useEffect(() => {
-    return () => {
-      caveSheet.sequence.pause();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code !== "Space" || !isActiveRef.current) return;
+      e.preventDefault();
+      setIsPlaying((prev) => !prev);
     };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const theatreCamRef = useRef<THREE.PerspectiveCamera>(null);
-
-  const handleSceneReady = useCallback(() => {
-    setIsReady(true);
-  }, []);
+  const handleSweepRevealStart = useCallback(() => setIsRevealed(true), []);
 
   return (
-    <SceneTransition
-      isReady={isReady}
-      isExiting={isExiting}
-      introHoldMs={3000}
-      exitHoldMs={0} // Zamani ke tool mikeshe ta screen siah she (be ms). Negative numbers will break it!
-      onIntroComplete={() => {
-        setIntroCompleted(true);
-      }}
-      onExitComplete={onComplete}
-    >
-      <SceneReadySignal onReady={handleSceneReady} />
-      <SheetProvider sheet={caveSheet}>
-        <group>
-          <CameraRig
-            theatreCamRef={theatreCamRef}
-            onExitTrigger={handleExitTrigger}
-          />
-          <TheatrePerspectiveCamera
-            theatreKey="Camera"
-            ref={theatreCamRef}
-            makeDefault={false}
-            position={[0, 1, -48]}
-            rotation={[0, Math.PI, 0]}
-            fov={45}
-            near={0.1}
-            far={10000}
-          />
+    // visible={isVisible}: Three.js skips all draw calls but keeps shaders/geometry in VRAM
+    <SheetProvider sheet={caveSheet}>
+      <group visible={isVisible}>
+        <CameraRig
+          theatreCamRef={theatreCamRef}
+          isActive={isActive}
+        />
 
-          <Stats />
+        {/* Invisible Theatre camera object — animated by caveSheet keyframes */}
+        <TheatrePerspectiveCamera
+          theatreKey="Camera"
+          ref={theatreCamRef}
+          makeDefault={false}
+          position={[0, 1, -48]}
+          rotation={[0, Math.PI, 0]}
+          fov={45}
+          near={0.1}
+          far={10000}
+        />
 
-          <SweepRevealWrapper
-            // epicenter={[0, 0, -100]}
-            maxRadius={300}
-            speed={60}
-            mode="overlay"
-            autoTriggerDelay={introCompleted ? 1000 : undefined}
-            onRevealStart={() => setIsRevealed(true)}
-          >
-            <CaveModel />
-          </SweepRevealWrapper>
-
-          <DesertDust />
-          <CenterDust />
-
+        {/*
+         * AnimatedFog writes to scene.fog globally.
+         * Only render when isActive so inactive scenes don't fight over fog.
+         */}
+        {isActive && (
           <AnimatedFog color={"#c0a382"} maxDensity={0.025} />
+        )}
+
+        {/*
+         * Skybox uses <Environment> which writes scene.environment globally.
+         * Only render when isActive.
+         */}
+        {isActive && (
           <Skybox
             image="/assets/cave/sunset.jpg"
             showMoon={false}
@@ -135,36 +127,60 @@ export default function CaveScene({ onComplete }: { onComplete?: () => void }) {
             skyScale={[3, 1, 3]}
             distance={1}
           />
-          <ambientLight intensity={isRevealed ? 1 : 0.1} />
-        </group>
-      </SheetProvider>
-    </SceneTransition>
+        )}
+
+        <SweepRevealWrapper
+          maxRadius={300}
+          speed={60}
+          mode="overlay"
+          autoTriggerDelay={1000}
+          onRevealStart={handleSweepRevealStart}
+          isActive={isActive}
+        >
+          <CaveModel />
+        </SweepRevealWrapper>
+
+        <DesertDust />
+        <CenterDust />
+
+        <ambientLight intensity={isRevealed ? 1 : 0.1} />
+      </group>
+    </SheetProvider>
   );
 }
 
-function SceneReadySignal({ onReady }: { onReady: () => void }) {
-  useEffect(() => {
-    onReady();
-  }, [onReady]);
-
-  return null;
-}
+// ── CameraRig ─────────────────────────────────────────────────────────────
+// Reads Theatre-animated cave camera → writes to state.camera (global).
+// Completely CPU-free when !isActive.
 
 function CameraRig({
   theatreCamRef,
-  onExitTrigger,
+  isActive,
 }: {
   theatreCamRef: React.RefObject<THREE.PerspectiveCamera | null>;
-  onExitTrigger: () => void;
+  isActive: boolean;
 }) {
+  const isActiveRef = useRef(isActive);
+  useEffect(() => { isActiveRef.current = isActive; }, [isActive]);
+
   const currentOffset = useRef(new THREE.Vector2(0, 0));
   const targetOffset = useRef(new THREE.Vector2(0, 0));
   const exitTriggeredRef = useRef(false);
 
-  useFrame((state) => {
-    const { pointer, camera } = state;
-    if (!theatreCamRef.current) return;
+  // Reset exit trigger each time scene activates
+  useEffect(() => {
+    if (isActive) {
+      exitTriggeredRef.current = false;
+    }
+  }, [isActive]);
 
+  useFrame((state) => {
+    // ── Guard: do nothing when not active ──────────────────────────────
+    if (!isActiveRef.current || !theatreCamRef.current) return;
+
+    const { pointer, camera } = state;
+
+    // Copy Theatre camera → global R3F camera
     camera.position.copy(theatreCamRef.current.position);
     camera.quaternion.copy(theatreCamRef.current.quaternion);
 
@@ -181,36 +197,22 @@ function CameraRig({
         camera.far = 10000;
         needsUpdate = true;
       }
-      if (needsUpdate) {
-        camera.updateProjectionMatrix();
-      }
+      if (needsUpdate) camera.updateProjectionMatrix();
     }
 
-    // Apply the Parallax offset based on mouse position
-    const maxPan = 0.4;
-    const maxTilt = 0.4;
-
-    targetOffset.current.x = -pointer.x * maxPan;
-    targetOffset.current.y = pointer.y * maxTilt;
-
+    // Mouse parallax
+    targetOffset.current.x = -pointer.x * 0.4;
+    targetOffset.current.y = pointer.y * 0.4;
     currentOffset.current.lerp(targetOffset.current, 0.05);
-
     camera.rotateY(currentOffset.current.x);
     camera.rotateX(currentOffset.current.y);
 
-    // ==========================================
-    // TAZNIMAT-E ZAMAN-E TRANSITION:
-    // In adad neshon mide ke dar kodom SANIEYE az animation transition shoro she.
-    // Mesle OceanScene ke rooye 14.0 gozashti, inja ham yek adad sabet midim.
-    // Khodet in adad ro taghir bede ta be zaman-e daghighi ke mikhay beresi!
-    const TRIGGER_POSITION = 7.5;
-    // ==========================================
-
+    // Exit trigger
     if (!exitTriggeredRef.current) {
       const pos = caveSheet.sequence.position;
       if (pos >= TRIGGER_POSITION && pos > 0.1) {
         exitTriggeredRef.current = true;
-        onExitTrigger();
+        requestTransition("tunnel", "palace");
       }
     }
   });

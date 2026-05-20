@@ -21,12 +21,25 @@ interface CloudTunnelProps {
   systemSpeed?: number;
   /** External reset trigger to restart the tunnel from the beginning */
   resetSignal?: number;
+  /**
+   * Fired once when the background sphere opacity exceeds 0.97 while isActive
+   * is true — at this point the screen is 100% hidden and it is safe to swap
+   * the underlying scene without any visible pop.
+   */
+  onFullyOpaque?: () => void;
+  /**
+   * Fired once when ALL tunnel materials have faded to near-zero opacity while
+   * isActive is false — the tunnel is now completely invisible.
+   */
+  onFullyHidden?: () => void;
 }
 
 export default function CloudTunnel({
   isActive = true,
   systemSpeed = 80,
   resetSignal = 0,
+  onFullyOpaque,
+  onFullyHidden,
 }: CloudTunnelProps) {
   const smokeTexture = useTexture("/smoke.png");
   const lensFlareTexture = useTexture("/lensflare.png");
@@ -64,6 +77,10 @@ export default function CloudTunnel({
   const expansionRef = useRef(0);
   const isFrozenRef = useRef(false);
   const wasActiveRef = useRef(isActive);
+
+  // Callback guard refs — reset each activation / deactivation cycle
+  const firedOpaqueRef = useRef(false);
+  const firedHiddenRef = useRef(false);
 
   // More clouds, deeper tunnel
   const CLOUD_COUNT = 300;
@@ -104,6 +121,8 @@ export default function CloudTunnel({
     warpSpeedRef.current = 1;
     expansionRef.current = 0;
     isFrozenRef.current = false;
+    firedOpaqueRef.current = false;
+    firedHiddenRef.current = false;
     setClouds(createClouds());
   }, [resetSignal, createClouds]);
 
@@ -112,6 +131,8 @@ export default function CloudTunnel({
 
     if (isActive) {
       isFrozenRef.current = false;
+      // Reset opaque guard so onFullyOpaque can fire for this new activation
+      firedOpaqueRef.current = false;
 
       if (!wasActive) {
         if (systemGroupRef.current) {
@@ -121,6 +142,9 @@ export default function CloudTunnel({
         expansionRef.current = 0;
         setClouds(createClouds());
       }
+    } else {
+      // Reset hidden guard so onFullyHidden can fire for this deactivation
+      firedHiddenRef.current = false;
     }
 
     wasActiveRef.current = isActive;
@@ -235,6 +259,17 @@ export default function CloudTunnel({
         lightFadeSpeed,
       );
 
+    // ── onFullyOpaque: fires once when background sphere is ~fully visible ──
+    if (
+      isActive &&
+      !firedOpaqueRef.current &&
+      bgMatRef.current &&
+      bgMatRef.current.opacity > 0.97
+    ) {
+      firedOpaqueRef.current = true;
+      onFullyOpaque?.();
+    }
+
     const isFullyHidden =
       !isActive &&
       bgMatRef.current?.opacity !== undefined &&
@@ -250,8 +285,14 @@ export default function CloudTunnel({
       flare1Ref.current.opacity < 0.01 &&
       flare2Ref.current.opacity < 0.01;
 
-    if (isFullyHidden) {
+    if (isFullyHidden && !firedHiddenRef.current) {
+      firedHiddenRef.current = true;
       isFrozenRef.current = true;
+      onFullyHidden?.();
+      return;
+    }
+
+    if (isFullyHidden) {
       return;
     }
 

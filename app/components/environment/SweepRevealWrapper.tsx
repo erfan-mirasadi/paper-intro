@@ -29,7 +29,8 @@ export default function SweepRevealWrapper({
   trailLength = 120.0, // Default trail length
   autoTriggerDelay,
   onRevealStart,
-}: SweepRevealWrapperProps) {
+  isActive = true, // To handle resets during loops
+}: SweepRevealWrapperProps & { isActive?: boolean }) {
   const groupRef = useRef<THREE.Group>(null);
   const { camera } = useThree();
 
@@ -60,14 +61,27 @@ export default function SweepRevealWrapper({
     return () => window.removeEventListener("click", triggerSweep);
   }, [triggerSweep]);
 
+  // Handle auto-trigger and reset logic for loops
   useEffect(() => {
-    if (autoTriggerDelay !== undefined) {
+    if (!isActive) {
+      // Reset the shader uniforms to black/hidden state when the scene becomes inactive
+      isSweeping.current = false;
+      currentRadius.current = 0;
+      shadersRef.current.forEach((shader) => {
+        if (shader.uniforms && shader.uniforms.uRadius) {
+          shader.uniforms.uRadius.value = 0;
+        }
+      });
+      return;
+    }
+
+    if (isActive && autoTriggerDelay !== undefined) {
       const timer = setTimeout(() => {
         triggerSweep();
       }, autoTriggerDelay);
       return () => clearTimeout(timer);
     }
-  }, [autoTriggerDelay, triggerSweep]);
+  }, [isActive, autoTriggerDelay, triggerSweep]);
 
   useEffect(() => {
     if (!groupRef.current) return;
