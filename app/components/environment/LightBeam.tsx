@@ -91,7 +91,10 @@ export default function LightBeam() {
       // Spread lines further apart as they go into the distance
       float baseRadius = ${LINE_GAP.toFixed(2)} * (0.3 + 0.7 * vUv.x);
 
-      float bendFactor  = pow(vUv.x, 2.0);
+      // FIX: Ensure vUv.x is never negative to avoid NaN issues, and replace pow() with multiplication
+      float safeVUvX = max(0.0, vUv.x);
+      float bendFactor = safeVUvX * safeVUvX;
+      
       float mouseReactX = mouse.x * 15.0 * bendFactor;
       float mouseReactY = mouse.y * 15.0 * bendFactor;
 
@@ -126,7 +129,10 @@ export default function LightBeam() {
       
       // Soft cylinder edges (vUv.y goes 0 to 1 around the tube)
       float edgeDist = abs(vUv.y - 0.5) * 2.0; 
-      float cylinderSoftness = pow(1.0 - edgeDist, 2.0);
+      
+      // FIX: Prevent negative values which cause NaN in WebGL when using pow(). Replaced with safe multiplication.
+      float safeEdge = max(0.0, 1.0 - edgeDist);
+      float cylinderSoftness = safeEdge * safeEdge;
       
       // Pure golden color, no white added
       vec3 coreColor = color;
@@ -156,7 +162,10 @@ export default function LightBeam() {
       
       // Wider and softer edge falloff for the glow
       float edgeDist = abs(vUv.y - 0.5) * 2.0;
-      float glowSoftness = pow(1.0 - edgeDist, 3.0);
+      
+      // FIX: Prevent negative values which cause NaN in WebGL when using pow(). Replaced with safe multiplication.
+      float safeEdge = max(0.0, 1.0 - edgeDist);
+      float glowSoftness = safeEdge * safeEdge * safeEdge;
       
       float intensity = mask * (0.5 + flow * 0.5) * glowSoftness * ${GLOW_INTENSITY.toFixed(2)};
 

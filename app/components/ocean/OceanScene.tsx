@@ -35,6 +35,7 @@ declare module "@react-three/fiber" {
 
 const EXIT_TRIGGER_POSITION = 14.0;
 const PLAYBACK_RATE = 1 / 1.8;
+const START_OFFSET_SECONDS = 0.5;
 
 interface OceanSceneProps {
   isActive: boolean;
@@ -61,8 +62,8 @@ export default function OceanScene({ isActive, isVisible }: OceanSceneProps) {
           <AnimatedFog color="#030507" baseDensity={0.0004} maxDensity={0.003} />
         )}
 
-        {/* Skybox: <Environment> writes scene.environment — guard with isActive */}
-        {isActive && <Skybox />}
+        {/* Skybox always mounted for warmup/preloading. isActive controls global state application, isVisible controls rendering */}
+        <Skybox isActive={isActive} isVisible={isVisible} />
 
         {/* Sequence driver + exit logic (CPU-free when not active) */}
         <OceanSequencer isActive={isActive} />
@@ -75,8 +76,8 @@ export default function OceanScene({ isActive, isVisible }: OceanSceneProps) {
 }
 
 // ── OceanSequencer ────────────────────────────────────────────────────────
-// Advances mainSheet.sequence in useFrame. Starts immediately when active.
-// Resets cleanly on deactivation so next visit begins from position 0.
+// Advances mainSheet.sequence in useFrame. Starts slightly ahead when active.
+// Resets cleanly on deactivation so next visit begins from the same offset.
 
 function OceanSequencer({ isActive }: { isActive: boolean }) {
   const isActiveRef = useRef(isActive);
@@ -85,15 +86,15 @@ function OceanSequencer({ isActive }: { isActive: boolean }) {
   const isPlayingRef = useRef(false);
   const exitTriggeredRef = useRef(false);
 
-  // Freeze & reset on deactivation, start immediately on activation
+  // Freeze & reset on deactivation, start slightly ahead on activation
   useEffect(() => {
     if (!isActive) {
       isPlayingRef.current = false;
       exitTriggeredRef.current = false;
       mainSheet.sequence.pause();
-      mainSheet.sequence.position = 0;
+      mainSheet.sequence.position = START_OFFSET_SECONDS;
     } else {
-      mainSheet.sequence.position = 0;
+      mainSheet.sequence.position = START_OFFSET_SECONDS;
       isPlayingRef.current = true;
       exitTriggeredRef.current = false;
     }

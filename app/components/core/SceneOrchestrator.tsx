@@ -50,6 +50,7 @@ import LightBeam from "../environment/LightBeam";
 import CaveScene from "../cave/CaveScene";
 import PalaceScene from "../palace/PalaceScene";
 import OceanScene from "../ocean/OceanScene";
+import Effect from "./Effect";
 import type { SceneId } from "./useSceneStore";
 import {
   onTransitionRequest,
@@ -103,6 +104,80 @@ function WarmupController() {
   return null;
 }
 
+// ── WebGLFade ─────────────────────────────────────────────────────────────
+/**
+ * Renders a full-screen quad attached to the active camera.
+ * renderOrder=900 so it covers all scenes, but allows LightBeam (renderOrder=999) 
+ * to render ON TOP of the fade transition.
+ */
+function WebGLFade({ 
+  opaque, 
+  color, 
+  onFadeInComplete, 
+  onFadeOutComplete 
+}: { 
+  opaque: boolean; 
+  color: string; 
+  onFadeInComplete: () => void; 
+  onFadeOutComplete: () => void; 
+}) {
+  const meshRef = useRef<THREE.Mesh>(null);
+  const materialRef = useRef<THREE.MeshBasicMaterial>(null);
+  const firedRef = useRef(false);
+
+  useEffect(() => {
+    firedRef.current = false;
+  }, [opaque]);
+
+  useFrame((state, delta) => {
+    if (!meshRef.current || !materialRef.current) return;
+    
+    // Attach to active camera
+    if (meshRef.current.parent !== state.camera) {
+      state.camera.add(meshRef.current);
+    }
+    
+    const targetOpacity = opaque ? 1 : 0;
+    const currentOpacity = materialRef.current.opacity;
+    
+    if (currentOpacity !== targetOpacity) {
+      // Transition over OVERLAY_FADE_MS
+      const step = delta / (OVERLAY_FADE_MS / 1000);
+      
+      let newOpacity = currentOpacity;
+      if (targetOpacity === 1) {
+        newOpacity = Math.min(1, currentOpacity + step);
+        if (newOpacity === 1 && !firedRef.current) {
+          firedRef.current = true;
+          onFadeInComplete();
+        }
+      } else {
+        newOpacity = Math.max(0, currentOpacity - step);
+        if (newOpacity === 0 && !firedRef.current) {
+          firedRef.current = true;
+          onFadeOutComplete();
+        }
+      }
+      materialRef.current.opacity = newOpacity;
+    }
+  });
+
+  return (
+    <mesh ref={meshRef} position={[0, 0, -0.1]} renderOrder={900}>
+      <planeGeometry args={[10, 10]} />
+      <meshBasicMaterial 
+        ref={materialRef}
+        color={color}
+        transparent={true}
+        opacity={1} // Start fully opaque for warmup
+        depthTest={false}
+        depthWrite={false}
+        toneMapped={false}
+      />
+    </mesh>
+  );
+}
+
 // ── SceneOrchestrator ─────────────────────────────────────────────────────
 
 export default function SceneOrchestrator() {
@@ -112,9 +187,8 @@ export default function SceneOrchestrator() {
   // During warmup ALL scenes are visible so Three.js compiles their shaders
   const [warmupVisible, setWarmupVisible] = useState(true);
 
-  // HTML overlay state
+  // Fade overlay state
   const [overlayOpaque, setOverlayOpaque] = useState(true); // opacity 1/0
-  const [overlayAnimated, setOverlayAnimated] = useState(false); // CSS transition on/off
   const [overlayColor, setOverlayColor] = useState("#000000"); // Color for the fade overlay
 
   // CloudTunnel state
@@ -131,7 +205,6 @@ export default function SceneOrchestrator() {
 
       setTimeout(() => {
         setWarmupVisible(false); // hide inactive scenes — warmup done
-        setOverlayAnimated(true); // enable CSS transition
         phaseRef.current = "black_fade_out";
         setOverlayOpaque(false); // start the first fade-out
       }, POST_WARMUP_BUFFER_MS);
@@ -192,25 +265,23 @@ export default function SceneOrchestrator() {
   }, []);
   */
 
-  // ── HTML overlay CSS transition end ───────────────────────────────────
-  const handleOverlayTransitionEnd = useCallback(
-    (e: TransitionEvent<HTMLDivElement>) => {
-      if (e.propertyName !== "opacity") return;
+  // ── WebGL Fade transition end ───────────────────────────────────
+  const handleFadeInComplete = useCallback(() => {
+    if (phaseRef.current === "black_fade_in") {
+      // Overlay is now solid black/white — swap scene instantly then fade out
+      setActiveScene(pendingSceneRef.current);
+      phaseRef.current = "black_fade_out";
+      setOverlayOpaque(false); // start fade-out immediately
+    }
+  }, []);
 
-      if (phaseRef.current === "black_fade_out") {
-        // Overlay has faded out — we're idle and the scene is fully visible
-        phaseRef.current = "idle";
-        signalIntroComplete();
-      } else if (phaseRef.current === "black_fade_in") {
-        // Overlay is now solid black — swap scene instantly then fade out
-        // Scene swap = zero-cost visibility toggle (already compiled & in VRAM)
-        setActiveScene(pendingSceneRef.current);
-        phaseRef.current = "black_fade_out";
-        setOverlayOpaque(false); // start fade-out immediately
-      }
-    },
-    [],
-  );
+  const handleFadeOutComplete = useCallback(() => {
+    if (phaseRef.current === "black_fade_out") {
+      // Overlay has faded out — we're idle and the scene is fully visible
+      phaseRef.current = "idle";
+      signalIntroComplete();
+    }
+  }, []);
 
   // ── Derived: is each scene visible? ──────────────────────────────────
   // During warmup all scenes are visible.  After warmup only the active scene.
@@ -227,28 +298,7 @@ export default function SceneOrchestrator() {
         overflow: "hidden",
       }}
     >
-      {/* ── HTML Black Overlay ──────────────────────────────────────────
-          Starts solid (opacity:1, no transition) to hide shader warmup.
-          overlayAnimated becomes true right before the first fade, so the
-          initial state is always an instant cut-to-black, never a flash.
-      ─────────────────────────────────────────────────────────────────── */}
-      <div
-        onTransitionEnd={handleOverlayTransitionEnd}
-        style={{
-          position: "absolute",
-          inset: 0,
-          background: overlayColor,
-          zIndex: 50,
-          opacity: overlayOpaque ? 1 : 0,
-          transition: overlayAnimated
-            ? `opacity ${OVERLAY_FADE_MS}ms ease-in-out`
-            : "none",
-          pointerEvents: overlayOpaque ? "auto" : "none",
-          willChange: "opacity",
-          transform: "translateZ(0)",
-          backfaceVisibility: "hidden",
-        }}
-      />
+      {/* The HTML overlay was replaced with WebGLFade inside the Canvas so LightBeam can render on top */}
 
       {/* ── Three.js Canvas ─────────────────────────────────────────────
           All scenes are ALWAYS mounted here.  The Suspense resolves only
@@ -268,6 +318,13 @@ export default function SceneOrchestrator() {
         <TheatreSetup>
           {/* Permanent root elements — never unmount, always camera-locked */}
           <LightBeam />
+          <WebGLFade
+            opaque={overlayOpaque}
+            color={overlayColor}
+            onFadeInComplete={handleFadeInComplete}
+            onFadeOutComplete={handleFadeOutComplete}
+          />
+          <Effect />
           {/* <CloudTunnel
             isActive={tunnelActive}
             onFullyOpaque={handleTunnelOpaque}

@@ -113,21 +113,18 @@ export default function CaveScene({ isActive, isVisible }: CaveSceneProps) {
           <AnimatedFog color={"#c0a382"} maxDensity={0.025} />
         )}
 
-        {/*
-         * Skybox uses <Environment> which writes scene.environment globally.
-         * Only render when isActive.
-         */}
-        {isActive && (
-          <Skybox
-            image="/assets/cave/sunset.jpg"
-            showMoon={false}
-            environmentFile="/assets/cave/desert-HDR_2k.hdr"
-            skyPosition={[0, -0.76, 0]}
-            skyRotation={[0, -0.5, 0]}
-            skyScale={[3, 1, 3]}
-            distance={1}
-          />
-        )}
+        {/* Skybox always mounted for warmup/preloading. isActive controls global state application, isVisible controls rendering */}
+        <Skybox
+          isActive={isActive}
+          isVisible={isVisible}
+          image="/assets/cave/sunset.jpg"
+          showMoon={false}
+          environmentFile="/assets/cave/desert-HDR_2k.hdr"
+          skyPosition={[0, -0.76, 0]}
+          skyRotation={[0, -0.5, 0]}
+          skyScale={[3, 1, 3]}
+          distance={1}
+        />
 
         <SweepRevealWrapper
           maxRadius={300}

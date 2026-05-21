@@ -32,11 +32,9 @@ export default function PalaceScene({ isActive, isVisible }: PalaceSceneProps) {
         {isActive && (
           <AnimatedFog
             color="#ffffff"
-            fogType="linear"
-            near={10}
-            far={100}
-            baseDensity={0.04}
-            maxDensity={0.2}
+            fogType="exp2"
+            baseDensity={0.02}
+            maxDensity={0.02}
           />
         )}
 

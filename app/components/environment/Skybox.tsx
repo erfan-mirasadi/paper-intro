@@ -1,9 +1,9 @@
 "use client";
 
-import { Environment, useTexture } from "@react-three/drei";
-import { useFrame } from "@react-three/fiber";
+import { useEnvironment, useTexture } from "@react-three/drei";
+import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 
 // Centralized configuration for the moon's lighting and glow effects
 const MOON_CONFIG = {
@@ -195,6 +195,8 @@ interface SkyboxProps {
   skyRotation?: [number, number, number];
   skyScale?: [number, number, number];
   distance?: number;
+  isActive?: boolean;
+  isVisible?: boolean;
 }
 
 export default function Skybox({ 
@@ -204,10 +206,25 @@ export default function Skybox({
   skyPosition = [0, -0.15, 1.6],
   skyRotation = [0, Math.PI / 2, 0],
   skyScale = [3, 0.8, 1],
-  distance = 6000
+  distance = 6000,
+  isActive = true,
+  isVisible = true
 }: SkyboxProps = {}) {
   const skyTexture = useTexture(image);
+  const envMap = useEnvironment({ files: environmentFile });
+  const { scene } = useThree();
   const groupRef = useRef<THREE.Group>(null);
+
+  useEffect(() => {
+    if (isActive) {
+      scene.environment = envMap;
+      scene.environmentIntensity = 0.4;
+    } else {
+      if (scene.environment === envMap) {
+        scene.environment = null;
+      }
+    }
+  }, [isActive, envMap, scene]);
 
   useFrame((state) => {
     if (groupRef.current) {
@@ -217,12 +234,7 @@ export default function Skybox({
 
   return (
     <>
-      <Environment
-        files={environmentFile}
-        background={false}
-        environmentIntensity={0.4}
-      />
-      <group ref={groupRef}>
+      <group ref={groupRef} visible={isVisible}>
         {/* Grouping both to the same center/origin and reducing scale by half to fix depth precision issues */}
         <group scale={distance}>
           {/* High quality background mesh optimized for front-view only */}
