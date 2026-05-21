@@ -2,7 +2,10 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import { useGLTF } from "@react-three/drei";
+import { useThree } from "@react-three/fiber";
 import * as THREE from "three";
+import { getSharedKTX2Loader, getSharedDRACOLoader } from "../SharedLoaders";
+import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 
 const PALACE_URL = "/assets/palace/palace-v02-opt.glb";
 const INSTANCE_COUNT = 2;
@@ -22,7 +25,19 @@ export default function PalaceModel({
   rotation,
   scale,
 }: PalaceModelProps) {
-  const { scene } = useGLTF(PALACE_URL);
+  const gl = useThree((state) => state.gl);
+  const { scene } = useGLTF(
+    PALACE_URL,
+    true,
+    true,
+    (loader: any) => {
+      loader.setKTX2Loader(getSharedKTX2Loader(gl));
+      loader.setDRACOLoader(getSharedDRACOLoader());
+      if (MeshoptDecoder) {
+        loader.setMeshoptDecoder(MeshoptDecoder);
+      }
+    }
+  );
   const meshRefs = useRef<THREE.InstancedMesh[]>([]);
 
   const meshes = useMemo(() => {
@@ -93,5 +108,3 @@ export default function PalaceModel({
     </group>
   );
 }
-
-useGLTF.preload(PALACE_URL);

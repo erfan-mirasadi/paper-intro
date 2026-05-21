@@ -47,9 +47,9 @@ import MusicPlayer from "../ui/MusicPlayer";
 import TheatreSetup from "../TheatreSetup";
 import LightBeam from "../environment/LightBeam";
 import CloudTunnel from "../environment/CloudTunnel";
-import CaveScene from "../cave/CaveScene";
+// import CaveScene from "../cave/CaveScene";
 import PalaceScene from "../palace/PalaceScene";
-import OceanScene from "../ocean/OceanScene";
+// import OceanScene from "../ocean/OceanScene";
 import type { SceneId } from "./useSceneStore";
 import {
   onTransitionRequest,
@@ -72,12 +72,12 @@ const OVERLAY_FADE_MS = 1000;
 
 // ── Phase ─────────────────────────────────────────────────────────────────
 type Phase =
-  | "booting"        // warmup in progress, overlay solid
-  | "idle"           // scene playing, no transition
-  | "black_fade_in"  // overlay 0→1 (ocean→cave loop)
+  | "booting" // warmup in progress, overlay solid
+  | "idle" // scene playing, no transition
+  | "black_fade_in" // overlay 0→1 (ocean→cave loop)
   | "black_fade_out" // overlay 1→0
-  | "tunnel_in"      // CloudTunnel ramping to opaque
-  | "tunnel_out";    // CloudTunnel fading out
+  | "tunnel_in" // CloudTunnel ramping to opaque
+  | "tunnel_out"; // CloudTunnel fading out
 
 // ── WarmupController ──────────────────────────────────────────────────────
 /**
@@ -107,13 +107,14 @@ function WarmupController() {
 
 export default function SceneOrchestrator() {
   // Which scene is logically active (controls camera, sequences, audio)
-  const [activeScene, setActiveScene] = useState<SceneId>("cave");
+  // const [activeScene, setActiveScene] = useState<SceneId>("cave");
+  const [activeScene, setActiveScene] = useState<SceneId>("palace");
 
   // During warmup ALL scenes are visible so Three.js compiles their shaders
   const [warmupVisible, setWarmupVisible] = useState(true);
 
   // HTML overlay state
-  const [overlayOpaque, setOverlayOpaque] = useState(true);   // opacity 1/0
+  const [overlayOpaque, setOverlayOpaque] = useState(true); // opacity 1/0
   const [overlayAnimated, setOverlayAnimated] = useState(false); // CSS transition on/off
 
   // CloudTunnel state
@@ -121,7 +122,8 @@ export default function SceneOrchestrator() {
 
   // Phase lives in a ref so event-bus callbacks always read the current value
   const phaseRef = useRef<Phase>("booting");
-  const pendingSceneRef = useRef<SceneId>("cave");
+  // const pendingSceneRef = useRef<SceneId>("cave");
+  const pendingSceneRef = useRef<SceneId>("palace");
 
   // ── onSceneReady: fired by WarmupController after WARMUP_FRAMES frames ──
   useEffect(() => {
@@ -129,10 +131,10 @@ export default function SceneOrchestrator() {
       if (phaseRef.current !== "booting") return;
 
       setTimeout(() => {
-        setWarmupVisible(false);     // hide inactive scenes — warmup done
-        setOverlayAnimated(true);    // enable CSS transition
+        setWarmupVisible(false); // hide inactive scenes — warmup done
+        setOverlayAnimated(true); // enable CSS transition
         phaseRef.current = "black_fade_out";
-        setOverlayOpaque(false);     // start the first fade-out
+        setOverlayOpaque(false); // start the first fade-out
       }, POST_WARMUP_BUFFER_MS);
     });
   }, []); // permanent listener
@@ -145,7 +147,7 @@ export default function SceneOrchestrator() {
 
       if (type === "black") {
         phaseRef.current = "black_fade_in";
-        setOverlayOpaque(true);     // trigger CSS fade-in
+        setOverlayOpaque(true); // trigger CSS fade-in
       } else {
         phaseRef.current = "tunnel_in";
         setTunnelActive(true);
@@ -164,7 +166,7 @@ export default function SceneOrchestrator() {
     // Give React one render cycle to apply the new activeScene, then
     // start fading the tunnel out so the new scene is revealed cleanly.
     requestAnimationFrame(() =>
-      requestAnimationFrame(() => setTunnelActive(false))
+      requestAnimationFrame(() => setTunnelActive(false)),
     );
   }, []);
 
@@ -184,7 +186,6 @@ export default function SceneOrchestrator() {
         // Overlay has faded out — we're idle and the scene is fully visible
         phaseRef.current = "idle";
         signalIntroComplete();
-
       } else if (phaseRef.current === "black_fade_in") {
         // Overlay is now solid black — swap scene instantly then fade out
         // Scene swap = zero-cost visibility toggle (already compiled & in VRAM)
@@ -198,13 +199,18 @@ export default function SceneOrchestrator() {
 
   // ── Derived: is each scene visible? ──────────────────────────────────
   // During warmup all scenes are visible.  After warmup only the active scene.
-  const caveVisible    = warmupVisible || activeScene === "cave";
-  const palaceVisible  = warmupVisible || activeScene === "palace";
-  const oceanVisible   = warmupVisible || activeScene === "ocean";
+  // const caveVisible    = warmupVisible || activeScene === "cave";
+  const palaceVisible = warmupVisible || activeScene === "palace";
+  // const oceanVisible   = warmupVisible || activeScene === "ocean";
 
   return (
     <main
-      style={{ position: "relative", width: "100vw", height: "100vh", overflow: "hidden" }}
+      style={{
+        position: "relative",
+        width: "100vw",
+        height: "100vh",
+        overflow: "hidden",
+      }}
     >
       {/* ── HTML Black Overlay ──────────────────────────────────────────
           Starts solid (opacity:1, no transition) to hide shader warmup.
@@ -251,18 +257,18 @@ export default function SceneOrchestrator() {
           <Suspense fallback={null}>
             <WarmupController />
 
-            <CaveScene
+            {/* <CaveScene
               isActive={activeScene === "cave"}
               isVisible={caveVisible}
-            />
+            /> */}
             <PalaceScene
               isActive={activeScene === "palace"}
               isVisible={palaceVisible}
             />
-            <OceanScene
+            {/* <OceanScene
               isActive={activeScene === "ocean"}
               isVisible={oceanVisible}
-            />
+            /> */}
           </Suspense>
         </TheatreSetup>
       </Canvas>

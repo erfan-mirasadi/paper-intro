@@ -4,12 +4,13 @@
 // ─────────────────────────────────────────────
 "use client";
 
-import { getProject } from "@theatre/core";
-import { SheetProvider } from "@theatre/r3f";
+// Theatre.js disabled — temporarily commented out per request.
+// import { getProject } from "@theatre/core";
+// import { SheetProvider } from "@theatre/r3f";
 import { useEffect, useState, ReactNode } from "react";
-import projectState from "../data/MainProject.theatre-project-state.json";
+// import projectState from "../data/MainProject.theatre-project-state.json";
 
-// Uncomment to enable the Studio editor in development:
+// Studio editor (dev only)
 // import studio from "@theatre/studio";
 // import extension from "@theatre/r3f/dist/extension";
 // if (typeof window !== "undefined" && process.env.NODE_ENV === "development") {
@@ -17,7 +18,22 @@ import projectState from "../data/MainProject.theatre-project-state.json";
 //   studio.extend(extension);
 // }
 
-export const project = getProject("MainProject", { state: projectState as any });
+// export const project = getProject("MainProject", { state: projectState as any });
+// export const mainSheet = project.sheet("MainSheet");
+
+// Minimal runtime stubs so other modules that import `mainSheet` don't crash
+// while Theatre.js is commented out. These are lightweight and safe.
+export const project = {
+  sheet: (_name: string) => ({
+    sequence: {
+      position: 0,
+      pause: () => {},
+      play: (_opts?: any) => {},
+      iterationCount: 1,
+    },
+  }),
+} as any;
+
 export const mainSheet = project.sheet("MainSheet");
 
 export default function TheatreSetup({ children }: { children: ReactNode }) {
@@ -29,5 +45,6 @@ export default function TheatreSetup({ children }: { children: ReactNode }) {
 
   if (!isClient) return null;
 
-  return <SheetProvider sheet={mainSheet}>{children}</SheetProvider>;
+  // Return children directly while Theatre.js is disabled.
+  return <>{children}</>;
 }
