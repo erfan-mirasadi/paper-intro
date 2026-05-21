@@ -371,7 +371,7 @@ export default function SceneOrchestrator() {
       >
         <TheatreSetup>
           {/* Permanent root elements — never unmount, always camera-locked */}
-          <LightBeam />
+          <LightBeam activeScene={activeScene} />
           <WebGLFade
             opaque={overlayOpaque}
             color={overlayColor}

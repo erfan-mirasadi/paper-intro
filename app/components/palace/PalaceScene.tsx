@@ -33,11 +33,12 @@ export default function PalaceScene({ isActive, isVisible }: PalaceSceneProps) {
           <AnimatedFog
             color="#ffffff"
             fogType="exp2"
-            baseDensity={0.02}
-            maxDensity={0.02}
+            baseDensity={0.0004}
+            maxDensity={0.01}
+            near={20}
+            far={100}
           />
         )}
-
         {/* Camera rig: writes directly to state.camera — no competing camera mount */}
         <PalaceCamera isActive={isActive} />
         <ambientLight intensity={0.1} />

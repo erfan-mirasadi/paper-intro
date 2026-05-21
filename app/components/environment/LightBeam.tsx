@@ -1,6 +1,7 @@
 import { useEffect, useRef, useMemo } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
+import type { SceneId } from "../core/useSceneStore";
 
 const LINE_COUNT = 8;
 const LINE_GAP = 0.8;
@@ -14,7 +15,13 @@ const BEAM_BASE_POSITION = { x: -3, y: -2, z: -5 };
 
 export const BEAM_COLOR = 0xedf7f7; // Rich golden yellow
 
-export default function LightBeam() {
+const SCENE_COLORS: Record<SceneId, number> = {
+  cave: 0xa6e6fa, // icy blue
+  palace: 0xedf7f7, // current color
+  ocean: 0xffdd44, // yellow
+};
+
+export default function LightBeam({ activeScene = "cave" }: { activeScene?: SceneId }) {
   // Main group that will forcefully attach itself to the active camera
   const mainGroupRef = useRef<THREE.Group>(null);
   const linesGroupRef = useRef<THREE.Group>(null);
@@ -38,7 +45,12 @@ export default function LightBeam() {
   // Dedicated Object3D to act as the SpotLight's target
   const spotLightTarget = useMemo(() => new THREE.Object3D(), []);
 
-  const beamColor = useMemo(() => new THREE.Color(BEAM_COLOR), []);
+  const currentColor = useMemo(() => new THREE.Color(SCENE_COLORS[activeScene || "cave"]), []);
+  const targetColor = useMemo(() => new THREE.Color(SCENE_COLORS[activeScene || "cave"]), []);
+
+  useEffect(() => {
+    targetColor.setHex(SCENE_COLORS[activeScene || "cave"]);
+  }, [activeScene, targetColor]);
 
   const basePoints = useMemo(
     () => [
@@ -59,21 +71,21 @@ export default function LightBeam() {
   const sharedUniforms = useMemo(
     () => ({
       time: { value: 0 },
-      color: { value: beamColor },
+      color: { value: currentColor },
       clickPulse: { value: 0.0 },
       mouse: { value: new THREE.Vector2(0, 0) },
     }),
-    [beamColor],
+    [currentColor],
   );
 
   const glowUniforms = useMemo(
     () => ({
       time: { value: 0 },
-      color: { value: beamColor },
+      color: { value: currentColor },
       clickPulse: { value: 0.0 },
       mouse: { value: new THREE.Vector2(0, 0) },
     }),
-    [beamColor],
+    [currentColor],
   );
 
   const vertexShader = `
@@ -214,6 +226,8 @@ export default function LightBeam() {
 
     const t = state.clock.getElapsedTime();
 
+    currentColor.lerp(targetColor, 3.0 * delta);
+
     const updateMat = (mat: THREE.ShaderMaterial) => {
       if (!mat?.uniforms) return;
       if (mat.uniforms.time) mat.uniforms.time.value = t;
@@ -260,16 +274,19 @@ export default function LightBeam() {
 
       // Update lights locally
       if (headLightRef.current) {
+        headLightRef.current.color.copy(currentColor);
         headLightRef.current.position.set(gp.x, gp.y, gp.z);
         headLightRef.current.intensity = 4.0 * pulse;
       }
 
       if (fillLightRef.current) {
+        fillLightRef.current.color.copy(currentColor);
         fillLightRef.current.position.set(gp.x, gp.y, gp.z - 15);
         fillLightRef.current.intensity = 2.0 * pulse;
       }
 
       if (spotLightRef.current) {
+        spotLightRef.current.color.copy(currentColor);
         spotLightRef.current.position.set(gp.x, gp.y, gp.z + 2);
         spotLightTarget.position.set(gp.x, gp.y, gp.z - 80);
         spotLightRef.current.intensity = 7.0 * pulse;
