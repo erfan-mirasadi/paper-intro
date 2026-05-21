@@ -1,22 +1,25 @@
-/**
- * sceneConfig.ts
- * ──────────────────────────────────────────────────────────────────────────
- * Dynamic imports for all three scenes.
- * Kept as the single source of truth for scene registration.
- * ──────────────────────────────────────────────────────────────────────────
- */
 import dynamic from "next/dynamic";
 import type { SceneId } from "./useSceneStore";
+import type { ComponentType } from "react";
 
 export type { SceneId };
 
-const CaveScene = dynamic(() => import("../cave/CaveScene"), { ssr: false });
-const PalaceScene = dynamic(() => import("../palace/PalaceScene"), {
+type SceneProps = {
+  isActive: boolean;
+  isVisible: boolean;
+};
+
+const CaveScene = dynamic<SceneProps>(() => import("../cave/CaveScene"), {
   ssr: false,
 });
-const OceanScene = dynamic(() => import("../ocean/OceanScene"), { ssr: false });
+const PalaceScene = dynamic<SceneProps>(() => import("../palace/PalaceScene"), {
+  ssr: false,
+});
+const OceanScene = dynamic<SceneProps>(() => import("../ocean/OceanScene"), {
+  ssr: false,
+});
 
-export const SCENES: Record<SceneId, any> = {
+export const SCENES: Record<SceneId, ComponentType<SceneProps>> = {
   cave: CaveScene,
   palace: PalaceScene,
   ocean: OceanScene,

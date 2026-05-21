@@ -125,12 +125,15 @@ function OceanSequencer({ isActive }: { isActive: boolean }) {
     const safeDelta = Math.min(delta, 0.1);
     mainSheet.sequence.position += safeDelta * PLAYBACK_RATE;
 
+    // Trigger transition slightly before the end of the sequence.
+    // At PLAYBACK_RATE = 1/1.8, 1 second of real time adds ~0.55 to sequence.position.
+    // This allows a 1-second fade out while the camera is still smoothly moving up to 14.0.
     if (
       !exitTriggeredRef.current &&
-      mainSheet.sequence.position >= EXIT_TRIGGER_POSITION
+      mainSheet.sequence.position >= EXIT_TRIGGER_POSITION - 0.55
     ) {
       exitTriggeredRef.current = true;
-      isPlayingRef.current = false;
+      // Do NOT set isPlayingRef to false so the camera keeps moving during the fade!
       requestTransition("black", "cave");
     }
   });

@@ -54,11 +54,11 @@ export default function CaveScene({ isActive, isVisible }: CaveSceneProps) {
     if (isActive) {
       // Reset for fresh activation (e.g. after ocean→cave loop)
       setIsRevealed(false);
-      setIsPlaying(true);
       caveSheet.sequence.position = 0;
+      setIsPlaying(true);
     } else {
       // Freeze when hidden — CPU-free
-      caveSheet.sequence.pause();
+      setIsPlaying(false);
     }
   }, [isActive]);
 

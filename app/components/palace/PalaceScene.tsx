@@ -8,15 +8,14 @@
  * ──────────────────────────────────────────────────────────────────────────
  */
 
-import { useEffect, useMemo, useRef, useState } from "react";
-// import { OrbitControls } from "@react-three/drei";
+import { useEffect, useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import AnimatedFog from "../environment/AnimatedFog";
 import MarbleFloor from "./MarbleFloor";
 import PalaceModel from "./PalaceModel";
 import FallingIdols from "./FallingIdols";
-import { requestTransition, onIntroComplete } from "../core/useSceneStore";
+import { requestTransition } from "../core/useSceneStore";
 
 interface PalaceSceneProps {
   isActive: boolean;
@@ -26,12 +25,10 @@ interface PalaceSceneProps {
 export default function PalaceScene({ isActive, isVisible }: PalaceSceneProps) {
   return (
     <>
-      {/* Background color: only set when active to avoid conflicts */}
       {isActive && <color attach="background" args={["#ffffff"]} />}
 
       {/* Three.js skips draw calls for visible=false but keeps VRAM intact */}
       <group visible={isVisible}>
-        {/* AnimatedFog writes scene.fog globally — guard with isActive */}
         {isActive && (
           <AnimatedFog
             color="#ffffff"
@@ -45,20 +42,6 @@ export default function PalaceScene({ isActive, isVisible }: PalaceSceneProps) {
 
         {/* Camera rig: writes directly to state.camera — no competing camera mount */}
         <PalaceCamera isActive={isActive} />
-        {/* 
-        <ambientLight intensity={0.6} />
-        <directionalLight
-          position={[10, 18, 30]}
-          intensity={2.2}
-          color="#ffffff"
-        />
-        <directionalLight
-          position={[-18, 12, 12]}
-          intensity={1.4}
-          color="#f8f4ee"
-        /> */}
-
-        {/* Subtle fill light for slight lift without noticeable cost */}
         <ambientLight intensity={0.1} />
 
         <PalaceModel position={[0, 3.5, 0]} scale={[1.6, 1, 2]} />
@@ -104,16 +87,15 @@ function PalaceCamera({ isActive }: { isActive: boolean }) {
     isActiveRef.current = isActive;
   }, [isActive]);
 
-  const [isPaused, setIsPaused] = useState(false);
+  const isPausedRef = useRef(false);
 
   const progressRef = useRef(0);
   const currentOffset = useRef(new THREE.Vector2(0, 0));
   const targetOffset = useRef(new THREE.Vector2(0, 0));
   const exitTriggeredRef = useRef(false);
-  const introCompletedRef = useRef(false);
 
   const start = useMemo(() => new THREE.Vector3(0, 3, 50), []);
-  const end = useMemo(() => new THREE.Vector3(0, 3, -105), []);
+  const end = useMemo(() => new THREE.Vector3(0, 3, -100), []);
   const lookAtTarget = useMemo(() => new THREE.Vector3(0, 50, -200), []);
   const travelDuration = 12;
 
@@ -132,7 +114,7 @@ function PalaceCamera({ isActive }: { isActive: boolean }) {
     if (!isActive) {
       progressRef.current = 0;
       exitTriggeredRef.current = false;
-      setIsPaused(false);
+      isPausedRef.current = false;
     }
   }, [isActive]);
 
@@ -142,7 +124,7 @@ function PalaceCamera({ isActive }: { isActive: boolean }) {
       if (!isActiveRef.current) return;
       if (e.code === "Space") {
         e.preventDefault(); // Prevent scrolling the page
-        setIsPaused((prev) => !prev);
+        isPausedRef.current = !isPausedRef.current;
       }
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -153,16 +135,13 @@ function PalaceCamera({ isActive }: { isActive: boolean }) {
     // ── Guard: CPU-free when not active ───────────────────────────────
     if (!isActiveRef.current) return;
 
-    if (!isPaused) {
-      // Advance the dolly progress IMMEDIATELY so there is continuous motion
-      // while the transition is happening. No more pauses!
-      progressRef.current = Math.min(
-        1,
-        progressRef.current + delta / travelDuration,
-      );
+    if (!isPausedRef.current) {
+      // Advance the dolly progress continuously. No clamp so it never stops!
+      progressRef.current = progressRef.current + delta / travelDuration;
     }
 
     // ALWAYS update the camera position
+    // Three.js lerpVectors does not clamp alpha, so it will continue extrapolating past 1.0
     camera.position.lerpVectors(start, end, progressRef.current);
     camera.lookAt(lookAtTarget);
 
@@ -173,8 +152,9 @@ function PalaceCamera({ isActive }: { isActive: boolean }) {
     camera.rotateY(currentOffset.current.x);
     camera.rotateX(currentOffset.current.y);
 
-    // Exit trigger: dolly completed
-    if (!exitTriggeredRef.current && progressRef.current >= 1.0) {
+    // Exit trigger: start transition slightly before the end
+    // so it fades out completely while the camera is still in motion.
+    if (!exitTriggeredRef.current && progressRef.current >= 0.91) {
       exitTriggeredRef.current = true;
       requestTransition("tunnel", "ocean");
     }

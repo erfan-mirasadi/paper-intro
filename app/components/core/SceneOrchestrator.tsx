@@ -46,7 +46,7 @@ import { useFrame } from "@react-three/fiber";
 import MusicPlayer from "../ui/MusicPlayer";
 import TheatreSetup from "../TheatreSetup";
 import LightBeam from "../environment/LightBeam";
-import CloudTunnel from "../environment/CloudTunnel";
+// import CloudTunnel from "../environment/CloudTunnel";
 import CaveScene from "../cave/CaveScene";
 import PalaceScene from "../palace/PalaceScene";
 import OceanScene from "../ocean/OceanScene";
@@ -115,9 +115,10 @@ export default function SceneOrchestrator() {
   // HTML overlay state
   const [overlayOpaque, setOverlayOpaque] = useState(true); // opacity 1/0
   const [overlayAnimated, setOverlayAnimated] = useState(false); // CSS transition on/off
+  const [overlayColor, setOverlayColor] = useState("#000000"); // Color for the fade overlay
 
   // CloudTunnel state
-  const [tunnelActive, setTunnelActive] = useState(false);
+  // const [tunnelActive, setTunnelActive] = useState(false);
 
   // Phase lives in a ref so event-bus callbacks always read the current value
   const phaseRef = useRef<Phase>("booting");
@@ -143,17 +144,32 @@ export default function SceneOrchestrator() {
       if (phaseRef.current !== "idle") return; // ignore if already transitioning
       pendingSceneRef.current = next;
 
-      if (type === "black") {
-        phaseRef.current = "black_fade_in";
-        setOverlayOpaque(true); // trigger CSS fade-in
+      // ── TEMPORARY DEBUG OVERRIDE ──────────────────────────────────────
+      // The user requested to bypass CloudTunnel and use simple HTML fades
+      // for all transitions to debug lag.
+      // Fade is black for all scenes, except white when going to Ocean.
+      if (next === "ocean") {
+        setOverlayColor("#ffffff");
       } else {
-        phaseRef.current = "tunnel_in";
-        setTunnelActive(true);
+        setOverlayColor("#000000");
       }
+      
+      phaseRef.current = "black_fade_in";
+      setOverlayOpaque(true); // trigger CSS fade-in
+
+      // Original logic (commented out):
+      // if (type === "black") {
+      //   phaseRef.current = "black_fade_in";
+      //   setOverlayOpaque(true); // trigger CSS fade-in
+      // } else {
+      //   phaseRef.current = "tunnel_in";
+      //   setTunnelActive(true);
+      // }
     });
   }, []); // permanent listener
 
   // ── CloudTunnel: fully opaque → swap scene instantly ─────────────────
+  /*
   const handleTunnelOpaque = useCallback(() => {
     if (phaseRef.current !== "tunnel_in") return;
 
@@ -174,6 +190,7 @@ export default function SceneOrchestrator() {
     phaseRef.current = "idle";
     signalIntroComplete();
   }, []);
+  */
 
   // ── HTML overlay CSS transition end ───────────────────────────────────
   const handleOverlayTransitionEnd = useCallback(
@@ -220,13 +237,16 @@ export default function SceneOrchestrator() {
         style={{
           position: "absolute",
           inset: 0,
-          background: "#000000",
+          background: overlayColor,
           zIndex: 50,
           opacity: overlayOpaque ? 1 : 0,
           transition: overlayAnimated
             ? `opacity ${OVERLAY_FADE_MS}ms ease-in-out`
             : "none",
           pointerEvents: overlayOpaque ? "auto" : "none",
+          willChange: "opacity",
+          transform: "translateZ(0)",
+          backfaceVisibility: "hidden",
         }}
       />
 
@@ -248,11 +268,11 @@ export default function SceneOrchestrator() {
         <TheatreSetup>
           {/* Permanent root elements — never unmount, always camera-locked */}
           <LightBeam />
-          <CloudTunnel
+          {/* <CloudTunnel
             isActive={tunnelActive}
             onFullyOpaque={handleTunnelOpaque}
             onFullyHidden={handleTunnelHidden}
-          />
+          /> */}
 
           {/* All scenes load in parallel under the single Suspense.
               WarmupController fires only after every scene's Suspense resolves. */}
