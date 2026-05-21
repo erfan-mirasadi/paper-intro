@@ -22,7 +22,7 @@ export default function MarbleFloor({
 
   return (
     <group {...props}>
-      <ambientLight intensity={ambientIntensity} />
+      {/* <ambientLight intensity={ambientIntensity} /> */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[80, 400]} />
         <MeshReflectorMaterial
@@ -30,10 +30,10 @@ export default function MarbleFloor({
           color="#ffffff"
           roughness={0.05}
           metalness={0.1}
-          mirror={0.7}
+          mirror={0.05}
           resolution={1028}
           mixBlur={0}
-          mixStrength={1.2}
+          mixStrength={0.2}
           blur={[0, 0]}
           depthScale={0}
           minDepthThreshold={0.9}

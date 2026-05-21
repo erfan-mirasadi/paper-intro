@@ -2,12 +2,17 @@ import { useEffect, useRef, useMemo } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 
-const LINE_COUNT = 5;
-const LINE_GAP = 0.7;
-const LINE_RADIUS = 0.02;
-const GLOW_RADIUS = 0.14;
+const LINE_COUNT = 8;
+const LINE_GAP = 0.8;
+const LINE_RADIUS = 0.05;
 
-export const BEAM_COLOR = 0xaae8ff;
+// Beam tuning
+const BEAM_INTENSITY = 2.0;
+const GLOW_INTENSITY = 2.0;
+
+const BEAM_BASE_POSITION = { x: -3, y: -2, z: -5 };
+
+export const BEAM_COLOR = 0xedf7f7; // Rich golden yellow
 
 export default function LightBeam() {
   // Main group that will forcefully attach itself to the active camera
@@ -38,10 +43,10 @@ export default function LightBeam() {
   const basePoints = useMemo(
     () => [
       new THREE.Vector3(0, 0, 3),
-      new THREE.Vector3(0, 0, -10),
-      new THREE.Vector3(0, 0, -30),
-      new THREE.Vector3(0, 0, -60),
-      new THREE.Vector3(0, 0, -100),
+      new THREE.Vector3(0, 0, 0),
+      new THREE.Vector3(0, 0, -4),
+      new THREE.Vector3(0, 0, -9),
+      new THREE.Vector3(0, 0, -15),
     ],
     [],
   );
@@ -82,19 +87,15 @@ export default function LightBeam() {
       vUv = uv;
       vec3 pos = position;
 
-      float lagAmount = sin(time * 2.5 + lineIndex * 1.5) * 15.0;
-      pos.z += lagAmount * vUv.x;
-
       float angle      = lineIndex * (6.28318 / ${LINE_COUNT.toFixed(1)});
-      float baseRadius = ${LINE_GAP.toFixed(2)} * (0.9 + 0.1 * vUv.x);
+      // Spread lines further apart as they go into the distance
+      float baseRadius = ${LINE_GAP.toFixed(2)} * (0.3 + 0.7 * vUv.x);
 
       float bendFactor  = pow(vUv.x, 2.0);
       float mouseReactX = mouse.x * 15.0 * bendFactor;
       float mouseReactY = mouse.y * 15.0 * bendFactor;
 
-      float clickShift = clickPulse * (4.0 + lineIndex * 0.5) * pow(vUv.x, 0.5);
-      pos.x += clickShift;
-
+      // Keep the basic curve spreading and mouse interaction
       pos.x += cos(angle) * baseRadius + mouseReactX;
       pos.y += sin(angle) * baseRadius + mouseReactY;
 
@@ -105,27 +106,61 @@ export default function LightBeam() {
   const fragmentShader = `
     uniform vec3  color;
     uniform float time;
+    uniform float lineIndex;
     varying vec2  vUv;
 
     void main() {
-      float pulse    = sin((vUv.x * 30.0) + time * 15.0) * 0.5 + 0.5;
-      float fadeOut  = smoothstep(1.0, 0.0, vUv.x);
-      float headGlow = smoothstep(0.03, 0.0, vUv.x) * 3.0;
-      float intensity = fadeOut * 0.5 + pulse * fadeOut * 0.8 + headGlow;
-      gl_FragColor = vec4(color * intensity, fadeOut);
+      // The "head" is at the far end (vUv.x near 1.0)
+      float wobbleSpeed = 2.0 + fract(lineIndex * 0.123) * 2.0;
+      float wobble = sin(time * wobbleSpeed + lineIndex) * 0.05;
+      float headPos = 0.9 + wobble; 
+      
+      // Mask: beam is solid from tail (0.0) up to headPos
+      float mask = smoothstep(headPos + 0.05, headPos - 0.05, vUv.x);
+      
+      // Just a tiny fade at the very end to prevent aliasing, otherwise perfectly uniform
+      mask *= smoothstep(0.0, 0.02, vUv.x);
+      
+      // Flowing energy texture moving towards the head (negative time)
+      float flow = sin(vUv.x * 30.0 - time * 15.0 + lineIndex * 12.3) * 0.5 + 0.5;
+      
+      // Soft cylinder edges (vUv.y goes 0 to 1 around the tube)
+      float edgeDist = abs(vUv.y - 0.5) * 2.0; 
+      float cylinderSoftness = pow(1.0 - edgeDist, 2.0);
+      
+      // Pure golden color, no white added
+      vec3 coreColor = color;
+      
+      float intensity = mask * (0.7 + flow * 0.5) * cylinderSoftness * ${BEAM_INTENSITY.toFixed(2)};
+
+      gl_FragColor = vec4(coreColor * intensity, intensity);
     }
   `;
 
   const glowFragmentShader = `
     uniform vec3  color;
     uniform float time;
+    uniform float lineIndex;
     varying vec2  vUv;
 
     void main() {
-      float fadeOut = smoothstep(1.0, 0.0, vUv.x);
-      float breathe = sin(time * 1.8) * 0.12 + 0.28;
-      float intensity = fadeOut * breathe;
-      gl_FragColor = vec4(color * intensity, intensity * 0.55);
+      float wobbleSpeed = 2.0 + fract(lineIndex * 0.123) * 2.0;
+      float wobble = sin(time * wobbleSpeed + lineIndex) * 0.05;
+      float headPos = 0.9 + wobble;
+      
+      float mask = smoothstep(headPos + 0.08, headPos - 0.08, vUv.x);
+      // Uniform tail
+      mask *= smoothstep(0.0, 0.02, vUv.x);
+      
+      float flow = sin(vUv.x * 20.0 - time * 10.0 + lineIndex * 12.3) * 0.5 + 0.5;
+      
+      // Wider and softer edge falloff for the glow
+      float edgeDist = abs(vUv.y - 0.5) * 2.0;
+      float glowSoftness = pow(1.0 - edgeDist, 3.0);
+      
+      float intensity = mask * (0.5 + flow * 0.5) * glowSoftness * ${GLOW_INTENSITY.toFixed(2)};
+
+      gl_FragColor = vec4(color * intensity, intensity * 0.6);
     }
   `;
 
@@ -185,8 +220,9 @@ export default function LightBeam() {
     glowMaterialsRef.current.forEach(updateMat);
 
     if (linesGroupRef.current) {
-      const baseX = -3,
-        baseY = -2;
+      const baseX = BEAM_BASE_POSITION.x;
+      const baseY = BEAM_BASE_POSITION.y;
+      const baseZ = BEAM_BASE_POSITION.z;
 
       linesGroupRef.current.position.x +=
         (baseX +
@@ -198,6 +234,8 @@ export default function LightBeam() {
           currentMouseY.current * 1.0 -
           linesGroupRef.current.position.y) *
         0.04;
+      linesGroupRef.current.position.z +=
+        (baseZ - linesGroupRef.current.position.z) * 0.04;
       linesGroupRef.current.rotation.y +=
         (-currentMouseX.current * 0.15 - linesGroupRef.current.rotation.y) *
         0.05;
@@ -241,15 +279,11 @@ export default function LightBeam() {
         intensity={4}
         distance={30}
         decay={0.8}
-        position={[-3, -2, -5]}
-      />
-      <pointLight
-        ref={fillLightRef}
-        color={BEAM_COLOR}
-        intensity={2}
-        distance={75}
-        decay={0.5}
-        position={[-3, -2, -20]}
+        position={[
+          BEAM_BASE_POSITION.x,
+          BEAM_BASE_POSITION.y,
+          BEAM_BASE_POSITION.z,
+        ]}
       />
       <spotLight
         ref={spotLightRef}
@@ -260,46 +294,57 @@ export default function LightBeam() {
         distance={100}
         decay={1}
         castShadow={false}
-        position={[-3, -2, -3]}
+        position={[
+          BEAM_BASE_POSITION.x,
+          BEAM_BASE_POSITION.y,
+          BEAM_BASE_POSITION.z + 2,
+        ]}
         target={spotLightTarget}
       />
 
-      <group ref={linesGroupRef} position={[-3, -2, -5]}>
+      <group
+        ref={linesGroupRef}
+        position={[
+          BEAM_BASE_POSITION.x,
+          BEAM_BASE_POSITION.y,
+          BEAM_BASE_POSITION.z,
+        ]}
+      >
         {Array.from({ length: LINE_COUNT }).map((_, i) => (
-          <mesh key={`glow-${i}`} renderOrder={997}>
-            <tubeGeometry args={[curve, 32, GLOW_RADIUS, 8, false]} />
-            <shaderMaterial
-              ref={(el) => {
-                if (el) glowMaterialsRef.current[i] = el;
-              }}
-              uniforms={{ ...glowUniforms, lineIndex: { value: i } }}
-              vertexShader={vertexShader}
-              fragmentShader={glowFragmentShader}
-              transparent={true}
-              blending={THREE.NormalBlending}
-              depthWrite={false}
-              depthTest={false}
-              side={THREE.FrontSide}
-            />
-          </mesh>
-        ))}
-
-        {Array.from({ length: LINE_COUNT }).map((_, i) => (
-          <mesh key={i} renderOrder={999}>
-            <tubeGeometry args={[curve, 64, LINE_RADIUS, 8, false]} />
-            <shaderMaterial
-              ref={(el) => {
-                if (el) materialsRef.current[i] = el;
-              }}
-              uniforms={{ ...sharedUniforms, lineIndex: { value: i } }}
-              vertexShader={vertexShader}
-              fragmentShader={fragmentShader}
-              transparent={true}
-              blending={THREE.AdditiveBlending}
-              depthWrite={false}
-              depthTest={false}
-            />
-          </mesh>
+          <group key={i}>
+            {/* Core Beam */}
+            <mesh renderOrder={999}>
+              <tubeGeometry args={[curve, 64, LINE_RADIUS, 16, false]} />
+              <shaderMaterial
+                ref={(el) => {
+                  if (el) materialsRef.current[i] = el;
+                }}
+                uniforms={{ ...sharedUniforms, lineIndex: { value: i } }}
+                vertexShader={vertexShader}
+                fragmentShader={fragmentShader}
+                transparent={true}
+                depthWrite={false}
+                depthTest={false}
+                blending={THREE.AdditiveBlending}
+              />
+            </mesh>
+            {/* Outer Glow */}
+            <mesh renderOrder={998}>
+              <tubeGeometry args={[curve, 64, LINE_RADIUS * 3.5, 16, false]} />
+              <shaderMaterial
+                ref={(el) => {
+                  if (el) glowMaterialsRef.current[i] = el;
+                }}
+                uniforms={{ ...glowUniforms, lineIndex: { value: i } }}
+                vertexShader={vertexShader}
+                fragmentShader={glowFragmentShader}
+                transparent={true}
+                depthWrite={false}
+                depthTest={false}
+                blending={THREE.AdditiveBlending}
+              />
+            </mesh>
+          </group>
         ))}
       </group>
     </group>

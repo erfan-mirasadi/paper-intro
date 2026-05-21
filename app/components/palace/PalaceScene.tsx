@@ -15,7 +15,7 @@ import * as THREE from "three";
 import AnimatedFog from "../environment/AnimatedFog";
 import MarbleFloor from "./MarbleFloor";
 import PalaceModel from "./PalaceModel";
-import Idols from "./Idols";
+import FallingIdols from "./FallingIdols";
 import { requestTransition, onIntroComplete } from "../core/useSceneStore";
 
 interface PalaceSceneProps {
@@ -35,7 +35,7 @@ export default function PalaceScene({ isActive, isVisible }: PalaceSceneProps) {
       <group visible={isVisible}>
         {/* AnimatedFog writes scene.fog globally — guard with isActive */}
         {isActive && (
-          <AnimatedFog color="#ffffff" baseDensity={0.01} maxDensity={0.01} />
+          <AnimatedFog color="#ffffff" baseDensity={0.01} maxDensity={0.015} />
         )}
 
         {/* Camera rig: writes directly to state.camera — no competing camera mount */}
@@ -43,7 +43,7 @@ export default function PalaceScene({ isActive, isVisible }: PalaceSceneProps) {
         {/* {isDev && isActive && (
           <OrbitControls enableDamping dampingFactor={0.08} makeDefault />
         )} */}
-
+        {/* 
         <ambientLight intensity={0.6} />
         <directionalLight
           position={[10, 18, 30]}
@@ -54,30 +54,34 @@ export default function PalaceScene({ isActive, isVisible }: PalaceSceneProps) {
           position={[-18, 12, 12]}
           intensity={1.4}
           color="#f8f4ee"
-        />
+        /> */}
 
-        <PalaceModel position={[0, 3.5, 0]} />
+        {/* Subtle fill light for slight lift without noticeable cost */}
+        <ambientLight intensity={0.1} />
+
+        <PalaceModel position={[0, 3.5, 0]} scale={[1.6, 1, 2]} />
         <MarbleFloor position={[0, -0.02, 0]} ambientIntensity={1.4} />
-        <Idols
+        <FallingIdols
+          isActive={isActive}
           position={[0, 0, 0]}
           idol1={{
-            position: [8, 6.3, -28],
-            rotation: [0, Math.PI / 2, 0],
+            position: [10, 0, -85],
+            rotation: [0, -Math.PI / 2, 0],
             scale: 0.4,
           }}
           idol2={{
-            position: [8, 0, 3],
-            rotation: [0, -Math.PI / 2, 0],
+            position: [-14, 0, -55],
+            rotation: [0, Math.PI / 2, 0],
             scale: 0.1,
           }}
           idol3={{
-            position: [-8, 0, -11.5],
-            rotation: [0, Math.PI * 0.5, 0],
-            scale: 13,
+            position: [10, 0, -25],
+            rotation: [0, -Math.PI * 0.5, 0],
+            scale: 16,
           }}
           idol4={{
-            position: [-113, -0.5, -20],
-            rotation: [0, -Math.PI / 4, 0],
+            position: [-15, -0.9, 10],
+            rotation: [0, Math.PI / 2, 0],
             scale: 37,
           }}
         />
@@ -107,14 +111,14 @@ function PalaceCamera({ isActive }: { isActive: boolean }) {
   const introCompletedRef = useRef(false);
 
   const start = useMemo(() => new THREE.Vector3(0, 3, 50), []);
-  const end = useMemo(() => new THREE.Vector3(0, 3, -90), []);
-  const lookAtTarget = useMemo(() => new THREE.Vector3(0, 20, -200), []);
-  const travelDuration = 12; // seconds
+  const end = useMemo(() => new THREE.Vector3(0, 3, -105), []);
+  const lookAtTarget = useMemo(() => new THREE.Vector3(0, 50, -200), []);
+  const travelDuration = 12;
 
   // Configure global camera for this scene once
   useEffect(() => {
     if (camera instanceof THREE.PerspectiveCamera) {
-      camera.fov = 75;
+      camera.fov = 70;
       camera.near = 0.1;
       camera.far = 10000;
       camera.updateProjectionMatrix();
