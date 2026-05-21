@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useCallback } from "react";
 import { useGLTF } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
@@ -28,13 +28,18 @@ export default function PalaceModel({
   scale,
 }: PalaceModelProps) {
   const gl = useThree((state) => state.gl);
-  const { scene } = useGLTF(PALACE_URL, true, true, (loader: any) => {
-    loader.setKTX2Loader(getSharedKTX2Loader(gl));
-    loader.setDRACOLoader(getSharedDRACOLoader());
-    if (MeshoptDecoder) {
-      loader.setMeshoptDecoder(MeshoptDecoder);
-    }
-  });
+  const loadExtensions = useCallback(
+    (loader: any) => {
+      loader.setKTX2Loader(getSharedKTX2Loader(gl));
+      loader.setDRACOLoader(getSharedDRACOLoader());
+      if (MeshoptDecoder) {
+        loader.setMeshoptDecoder(MeshoptDecoder);
+      }
+    },
+    [gl],
+  );
+
+  const { scene } = useGLTF(PALACE_URL, true, true, loadExtensions);
   const meshRefs = useRef<THREE.InstancedMesh[]>([]);
 
   const meshes = useMemo(() => {
@@ -46,7 +51,6 @@ export default function PalaceModel({
     scene.traverse((obj) => {
       if ((obj as THREE.Mesh).isMesh) {
         const mesh = obj as THREE.Mesh;
-        // Clone material so clipping plane doesn't affect other models sharing the material
         if (mesh.material && !mesh.userData.materialCloned) {
           mesh.material = (mesh.material as THREE.Material).clone();
           mesh.userData.materialCloned = true;
@@ -97,34 +101,28 @@ export default function PalaceModel({
   }, [meshes, spacing, overlapFactor, autoSpacing]);
 
   const groupRef = useRef<THREE.Group>(null);
+  const clipPlaneRef = useRef(new THREE.Plane(new THREE.Vector3(0, 0, 1), 0));
 
   useEffect(() => {
-    gl.localClippingEnabled = true;
-  }, [gl]);
+    // Assign clipping plane once
+    meshes.forEach(({ mesh }) => {
+      const mat = mesh.material as THREE.Material;
+      mat.clippingPlanes = [clipPlaneRef.current];
+      mat.clipShadows = true;
+      mat.needsUpdate = true; // Only needs update once to compile with clipping planes
+    });
+  }, [meshes]);
 
   useFrame(() => {
     if (groupRef.current) {
       const resolvedSpacing = (spacing ?? autoSpacing) * overlapFactor;
-
-      // The second instance is centered at -resolvedSpacing.
-      // Assuming its local origin is at its center, its geometry spans from
-      // (-resolvedSpacing + autoSpacing/2) down to (-resolvedSpacing - autoSpacing/2).
-      // If KEEP_FRACTION = 0, we cut exactly at its start (-resolvedSpacing + autoSpacing/2).
-      // If KEEP_FRACTION = 1, we cut at its end (-resolvedSpacing - autoSpacing/2).
       const cutZ =
         -resolvedSpacing + autoSpacing / 2 - autoSpacing * KEEP_FRACTION;
-
-      // Plane equation: Z + constant > 0 => Z > -constant, so constant = -cutZ
       const constant = -cutZ;
-      const localPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), constant);
-      localPlane.applyMatrix4(groupRef.current.matrixWorld);
 
-      meshes.forEach(({ mesh }) => {
-        const mat = mesh.material as THREE.Material;
-        mat.clippingPlanes = [localPlane];
-        mat.clipShadows = true;
-        mat.needsUpdate = true;
-      });
+      // Update the existing plane without triggering shader recompilation
+      clipPlaneRef.current.set(new THREE.Vector3(0, 0, 1), constant);
+      clipPlaneRef.current.applyMatrix4(groupRef.current.matrixWorld);
     }
   });
 

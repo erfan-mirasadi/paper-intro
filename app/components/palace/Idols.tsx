@@ -4,7 +4,7 @@ import { useGLTF } from "@react-three/drei";
 import { useThree } from "@react-three/fiber";
 import { getSharedKTX2Loader, getSharedDRACOLoader } from "../SharedLoaders";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
-import { useEffect } from "react";
+import { useEffect, useCallback } from "react";
 import type { Ref } from "react";
 import type { Object3D } from "three";
 
@@ -54,17 +54,20 @@ export default function Idols({
   idolRefs,
 }: IdolsProps) {
   const gl = useThree((state) => state.gl);
+  
+  const loadExtensions = useCallback((loader: any) => {
+    loader.setKTX2Loader(getSharedKTX2Loader(gl));
+    loader.setDRACOLoader(getSharedDRACOLoader());
+    if (MeshoptDecoder) {
+      loader.setMeshoptDecoder(MeshoptDecoder);
+    }
+  }, [gl]);
+
   const [idol1Data, idol2Data, idol3Data, idol4Data] = useGLTF(
     [IDOL_1_URL, IDOL_2_URL, IDOL_3_URL, IDOL_4_URL],
     true,
     true,
-    (loader: any) => {
-      loader.setKTX2Loader(getSharedKTX2Loader(gl));
-      loader.setDRACOLoader(getSharedDRACOLoader());
-      if (MeshoptDecoder) {
-        loader.setMeshoptDecoder(MeshoptDecoder);
-      }
-    },
+    loadExtensions,
   );
 
   const idol1Transform = { ...DEFAULT_TRANSFORM, ...idol1 };

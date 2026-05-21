@@ -1,28 +1,21 @@
 "use client";
 
-import { useMemo } from "react";
 import type { ComponentProps } from "react";
 import { useTexture, MeshReflectorMaterial } from "@react-three/drei";
 import * as THREE from "three";
 
-interface MarbleFloorProps extends ComponentProps<"group"> {
-  ambientIntensity?: number;
-}
+type MarbleFloorProps = ComponentProps<"group">;
 
-export default function MarbleFloor({
-  ambientIntensity = 6.5,
-  ...props
-}: MarbleFloorProps) {
-  const marbleTexture = useTexture("/assets/cave/old/marble.png");
-  useMemo(() => {
-    marbleTexture.wrapS = marbleTexture.wrapT = THREE.RepeatWrapping;
-    marbleTexture.repeat.set(40, 110);
-    marbleTexture.anisotropy = 16;
-  }, [marbleTexture]);
+export default function MarbleFloor({ ...props }: MarbleFloorProps) {
+  const marbleTexture = useTexture("/assets/palace/marble.jpeg", (texture) => {
+    texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(40, 110);
+    texture.anisotropy = 16;
+    texture.needsUpdate = true;
+  });
 
   return (
     <group {...props}>
-      {/* <ambientLight intensity={ambientIntensity} /> */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[220, 260]} />
         <MeshReflectorMaterial
@@ -31,7 +24,7 @@ export default function MarbleFloor({
           roughness={0.05}
           metalness={0.1}
           mirror={0.05}
-          resolution={1028}
+          resolution={1024}
           mixBlur={0}
           mixStrength={0.2}
           blur={[0, 0]}
@@ -40,7 +33,7 @@ export default function MarbleFloor({
           maxDepthThreshold={1.2}
           depthToBlurRatioBias={0.2}
           distortion={0}
-          transparent={true}
+          transparent={false}
           opacity={1}
         />
       </mesh>

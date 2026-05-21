@@ -239,7 +239,11 @@ export default function SceneOrchestrator() {
       ─────────────────────────────────────────────────────────────────── */}
       <Canvas
         shadows
-        gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping }}
+        gl={{
+          antialias: true,
+          toneMapping: THREE.ACESFilmicToneMapping,
+          localClippingEnabled: true,
+        }}
         dpr={[1, 2]}
         style={{ position: "absolute", inset: 0, zIndex: 10 }}
       >
