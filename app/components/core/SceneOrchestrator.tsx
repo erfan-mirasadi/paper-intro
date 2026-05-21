@@ -47,9 +47,9 @@ import MusicPlayer from "../ui/MusicPlayer";
 import TheatreSetup from "../TheatreSetup";
 import LightBeam from "../environment/LightBeam";
 import CloudTunnel from "../environment/CloudTunnel";
-// import CaveScene from "../cave/CaveScene";
+import CaveScene from "../cave/CaveScene";
 import PalaceScene from "../palace/PalaceScene";
-// import OceanScene from "../ocean/OceanScene";
+import OceanScene from "../ocean/OceanScene";
 import type { SceneId } from "./useSceneStore";
 import {
   onTransitionRequest,
@@ -107,8 +107,7 @@ function WarmupController() {
 
 export default function SceneOrchestrator() {
   // Which scene is logically active (controls camera, sequences, audio)
-  // const [activeScene, setActiveScene] = useState<SceneId>("cave");
-  const [activeScene, setActiveScene] = useState<SceneId>("palace");
+  const [activeScene, setActiveScene] = useState<SceneId>("cave");
 
   // During warmup ALL scenes are visible so Three.js compiles their shaders
   const [warmupVisible, setWarmupVisible] = useState(true);
@@ -122,8 +121,7 @@ export default function SceneOrchestrator() {
 
   // Phase lives in a ref so event-bus callbacks always read the current value
   const phaseRef = useRef<Phase>("booting");
-  // const pendingSceneRef = useRef<SceneId>("cave");
-  const pendingSceneRef = useRef<SceneId>("palace");
+  const pendingSceneRef = useRef<SceneId>("cave");
 
   // ── onSceneReady: fired by WarmupController after WARMUP_FRAMES frames ──
   useEffect(() => {
@@ -199,9 +197,9 @@ export default function SceneOrchestrator() {
 
   // ── Derived: is each scene visible? ──────────────────────────────────
   // During warmup all scenes are visible.  After warmup only the active scene.
-  // const caveVisible    = warmupVisible || activeScene === "cave";
+  const caveVisible    = warmupVisible || activeScene === "cave";
   const palaceVisible = warmupVisible || activeScene === "palace";
-  // const oceanVisible   = warmupVisible || activeScene === "ocean";
+  const oceanVisible   = warmupVisible || activeScene === "ocean";
 
   return (
     <main
@@ -261,18 +259,18 @@ export default function SceneOrchestrator() {
           <Suspense fallback={null}>
             <WarmupController />
 
-            {/* <CaveScene
+            <CaveScene
               isActive={activeScene === "cave"}
               isVisible={caveVisible}
-            /> */}
+            />
             <PalaceScene
               isActive={activeScene === "palace"}
               isVisible={palaceVisible}
             />
-            {/* <OceanScene
+            <OceanScene
               isActive={activeScene === "ocean"}
               isVisible={oceanVisible}
-            /> */}
+            />
           </Suspense>
         </TheatreSetup>
       </Canvas>

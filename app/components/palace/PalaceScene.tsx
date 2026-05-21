@@ -24,8 +24,6 @@ interface PalaceSceneProps {
 }
 
 export default function PalaceScene({ isActive, isVisible }: PalaceSceneProps) {
-  const isDev = process.env.NODE_ENV === "development";
-
   return (
     <>
       {/* Background color: only set when active to avoid conflicts */}
@@ -47,9 +45,6 @@ export default function PalaceScene({ isActive, isVisible }: PalaceSceneProps) {
 
         {/* Camera rig: writes directly to state.camera — no competing camera mount */}
         <PalaceCamera isActive={isActive} />
-        {/* {isDev && isActive && (
-          <OrbitControls enableDamping dampingFactor={0.08} makeDefault />
-        )} */}
         {/* 
         <ambientLight intensity={0.6} />
         <directionalLight
