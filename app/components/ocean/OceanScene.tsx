@@ -59,7 +59,11 @@ export default function OceanScene({ isActive, isVisible }: OceanSceneProps) {
 
         {/* AnimatedFog: writes scene.fog globally — guard with isActive */}
         {isActive && (
-          <AnimatedFog color="#030507" baseDensity={0.0004} maxDensity={0.003} />
+          <AnimatedFog
+            color="#030507"
+            baseDensity={0.0004}
+            maxDensity={0.003}
+          />
         )}
 
         {/* Skybox always mounted for warmup/preloading. isActive controls global state application, isVisible controls rendering */}
@@ -81,7 +85,9 @@ export default function OceanScene({ isActive, isVisible }: OceanSceneProps) {
 
 function OceanSequencer({ isActive }: { isActive: boolean }) {
   const isActiveRef = useRef(isActive);
-  useEffect(() => { isActiveRef.current = isActive; }, [isActive]);
+  useEffect(() => {
+    isActiveRef.current = isActive;
+  }, [isActive]);
 
   const isPlayingRef = useRef(false);
   const exitTriggeredRef = useRef(false);
@@ -116,7 +122,9 @@ function OceanSequencer({ isActive }: { isActive: boolean }) {
 
   // Pause on unmount (safety)
   useEffect(() => {
-    return () => { mainSheet.sequence.pause(); };
+    return () => {
+      mainSheet.sequence.pause();
+    };
   }, []);
 
   useFrame((_, delta) => {
@@ -147,7 +155,9 @@ function OceanSequencer({ isActive }: { isActive: boolean }) {
 
 function OceanSceneContent({ isActive }: { isActive: boolean }) {
   const isActiveRef = useRef(isActive);
-  useEffect(() => { isActiveRef.current = isActive; }, [isActive]);
+  useEffect(() => {
+    isActiveRef.current = isActive;
+  }, [isActive]);
 
   const waterRef = useRef<Water>(null!);
   const pulseZ = useRef(2000);
@@ -155,16 +165,22 @@ function OceanSceneContent({ isActive }: { isActive: boolean }) {
   const PULSE_LIMIT = SCENE_SIZE * -0.9;
   const mountainBrightness = 0.1;
 
-  const darkWaterColor  = useMemo(() => new THREE.Color(0x001e0f), []);
+  const darkWaterColor = useMemo(() => new THREE.Color(0x001e0f), []);
   const brightWaterColor = useMemo(() => new THREE.Color(0x00aaff), []);
-  const moonWorldPosition = useMemo(() => new THREE.Vector3(0, 1400, -6370), []);
+  const moonWorldPosition = useMemo(
+    () => new THREE.Vector3(0, 1400, -6370),
+    [],
+  );
 
-  const moonConfig = useMemo(() => ({
-    color: 0x5599cc,
-    direction: new THREE.Vector3(0, 0.15, -1).normalize(),
-    shininess: "2500.0",
-    brightness: "10.0",
-  }), []);
+  const moonConfig = useMemo(
+    () => ({
+      color: 0x5599cc,
+      direction: new THREE.Vector3(0, 0.15, -1).normalize(),
+      shininess: "2500.0",
+      brightness: "10.0",
+    }),
+    [],
+  );
 
   const texture = useLoader(THREE.TextureLoader, "/textures/waternormals.jpg");
   const waterNormals = useMemo(() => {
@@ -173,18 +189,21 @@ function OceanSceneContent({ isActive }: { isActive: boolean }) {
     return t;
   }, [texture]);
 
-  const config = useMemo(() => ({
-    textureWidth: 512,
-    textureHeight: 512,
-    waterNormals,
-    sunDirection: moonConfig.direction,
-    sunColor: moonConfig.color,
-    waterColor: 0x00121a,
-    distortionScale: 4.0,
-    size: 1.0,
-    fog: true,
-    alpha: 0.85,
-  }), [waterNormals, moonConfig]);
+  const config = useMemo(
+    () => ({
+      textureWidth: 512,
+      textureHeight: 512,
+      waterNormals,
+      sunDirection: moonConfig.direction,
+      sunColor: moonConfig.color,
+      waterColor: 0x00121a,
+      distortionScale: 4.0,
+      size: 1.0,
+      fog: true,
+      alpha: 0.85,
+    }),
+    [waterNormals, moonConfig],
+  );
 
   const waterGeometry = useMemo(
     () => new THREE.PlaneGeometry(SCENE_SIZE, SCENE_SIZE),
@@ -200,8 +219,8 @@ function OceanSceneContent({ isActive }: { isActive: boolean }) {
     mat.uniforms.uPulseColor = { value: brightWaterColor.clone() };
 
     mat.onBeforeCompile = (shader) => {
-      shader.uniforms.uPulseZ     = mat.uniforms.uPulseZ;
-      shader.uniforms.uBaseColor  = mat.uniforms.uBaseColor;
+      shader.uniforms.uPulseZ = mat.uniforms.uPulseZ;
+      shader.uniforms.uBaseColor = mat.uniforms.uBaseColor;
       shader.uniforms.uPulseColor = mat.uniforms.uPulseColor;
 
       shader.fragmentShader = `
@@ -260,9 +279,9 @@ function OceanSceneContent({ isActive }: { isActive: boolean }) {
     }
   });
 
-  const bgMountainPos    = [0, -25, -14000] as const;
+  const bgMountainPos = [0, -25, -14000] as const;
   const bgMountainStretch = [1.5, 1, 1] as const;
-  const bgMountainScale  = 40;
+  const bgMountainScale = 40;
   const bgMountainSpread = 5000;
 
   return (
@@ -273,19 +292,45 @@ function OceanSceneContent({ isActive }: { isActive: boolean }) {
       <Island2 />
       <Lighthouse />
       <StaticClouds opacity={0.1} />
-      <Mountain2 position={[0, 500, 10000]}    rotation={[0, 4, 0]}           scale={40} color={[0.2, 0.2, 0.2]} />
-      <Mountain2 position={[1300, 300, 11000]} rotation={[0, Math.PI / 2, 0]} scale={40} color={[0.2, 0.2, 0.2]} />
+      <Mountain2
+        position={[0, 500, 10000]}
+        rotation={[0, 4, 0]}
+        scale={40}
+        color={[0.2, 0.2, 0.2]}
+      />
+      <Mountain2
+        position={[1300, 300, 11000]}
+        rotation={[0, Math.PI / 2, 0]}
+        scale={40}
+        color={[0.2, 0.2, 0.2]}
+      />
 
       <group position={bgMountainPos} scale={bgMountainStretch}>
-        <Mountain2 position={[0, 0, 0]} rotation={[0, 4, 0]} scale={bgMountainScale}
+        <Mountain2
+          position={[0, 0, 0]}
+          rotation={[0, 4, 0]}
+          scale={bgMountainScale}
           color={[mountainBrightness, mountainBrightness, mountainBrightness]}
-          hasClouds={false} receiveSceneFog={true} sceneFogMultiplier={0.15} />
-        <Mountain2 position={[bgMountainSpread + 5500, 0, 0]} scale={bgMountainScale * 0.8}
+          hasClouds={false}
+          receiveSceneFog={true}
+          sceneFogMultiplier={0.15}
+        />
+        <Mountain2
+          position={[bgMountainSpread + 5500, 0, 0]}
+          scale={bgMountainScale * 0.8}
           color={[mountainBrightness, mountainBrightness, mountainBrightness]}
-          hasClouds={false} receiveSceneFog={true} sceneFogMultiplier={0.15} />
-        <Mountain2 position={[bgMountainSpread * 2.5, 0, 0]} scale={bgMountainScale * 1.2}
+          hasClouds={false}
+          receiveSceneFog={true}
+          sceneFogMultiplier={0.15}
+        />
+        <Mountain2
+          position={[bgMountainSpread * 2.5, 0, 0]}
+          scale={bgMountainScale * 1.2}
           color={[mountainBrightness, mountainBrightness, mountainBrightness]}
-          hasClouds={false} receiveSceneFog={true} sceneFogMultiplier={0.15} />
+          hasClouds={false}
+          receiveSceneFog={true}
+          sceneFogMultiplier={0.15}
+        />
       </group>
 
       <group position={[0, -2, 0]}>
@@ -294,11 +339,18 @@ function OceanSceneContent({ isActive }: { isActive: boolean }) {
           args={[waterGeometry, config]}
           rotation-x={-Math.PI / 2}
           position={[0, 0, 0]}
-          onPointerDown={(e) => { pulseZ.current = e.camera.position.z; }}
+          onPointerDown={(e) => {
+            pulseZ.current = e.camera.position.z;
+          }}
         />
         <mesh position={[0, -510, 0]}>
           <boxGeometry args={[SCENE_SIZE, 1000, SCENE_SIZE]} />
-          <meshBasicMaterial color={0x001220} transparent opacity={0.8} depthWrite={false} />
+          <meshBasicMaterial
+            color={0x001220}
+            transparent
+            opacity={0.8}
+            depthWrite={false}
+          />
         </mesh>
       </group>
     </>

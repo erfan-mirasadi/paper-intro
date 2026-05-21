@@ -39,10 +39,11 @@
  */
 
 import { useState, useEffect, useRef, useCallback, Suspense } from "react";
-import type { TransitionEvent } from "react";
+// import type { TransitionEvent } from "react";
 import * as THREE from "three";
 import { Canvas } from "@react-three/fiber";
 import { useFrame } from "@react-three/fiber";
+import { useProgress } from "@react-three/drei";
 import MusicPlayer from "../ui/MusicPlayer";
 import TheatreSetup from "../TheatreSetup";
 import LightBeam from "../environment/LightBeam";
@@ -107,19 +108,19 @@ function WarmupController() {
 // ── WebGLFade ─────────────────────────────────────────────────────────────
 /**
  * Renders a full-screen quad attached to the active camera.
- * renderOrder=900 so it covers all scenes, but allows LightBeam (renderOrder=999) 
+ * renderOrder=900 so it covers all scenes, but allows LightBeam (renderOrder=999)
  * to render ON TOP of the fade transition.
  */
-function WebGLFade({ 
-  opaque, 
-  color, 
-  onFadeInComplete, 
-  onFadeOutComplete 
-}: { 
-  opaque: boolean; 
-  color: string; 
-  onFadeInComplete: () => void; 
-  onFadeOutComplete: () => void; 
+function WebGLFade({
+  opaque,
+  color,
+  onFadeInComplete,
+  onFadeOutComplete,
+}: {
+  opaque: boolean;
+  color: string;
+  onFadeInComplete: () => void;
+  onFadeOutComplete: () => void;
 }) {
   const meshRef = useRef<THREE.Mesh>(null);
   const materialRef = useRef<THREE.MeshBasicMaterial>(null);
@@ -131,19 +132,19 @@ function WebGLFade({
 
   useFrame((state, delta) => {
     if (!meshRef.current || !materialRef.current) return;
-    
+
     // Attach to active camera
     if (meshRef.current.parent !== state.camera) {
       state.camera.add(meshRef.current);
     }
-    
+
     const targetOpacity = opaque ? 1 : 0;
     const currentOpacity = materialRef.current.opacity;
-    
+
     if (currentOpacity !== targetOpacity) {
       // Transition over OVERLAY_FADE_MS
       const step = delta / (OVERLAY_FADE_MS / 1000);
-      
+
       let newOpacity = currentOpacity;
       if (targetOpacity === 1) {
         newOpacity = Math.min(1, currentOpacity + step);
@@ -165,7 +166,7 @@ function WebGLFade({
   return (
     <mesh ref={meshRef} position={[0, 0, -0.1]} renderOrder={900}>
       <planeGeometry args={[10, 10]} />
-      <meshBasicMaterial 
+      <meshBasicMaterial
         ref={materialRef}
         color={color}
         transparent={true}
@@ -175,6 +176,58 @@ function WebGLFade({
         toneMapped={false}
       />
     </mesh>
+  );
+}
+
+// ── LoadingScreen ─────────────────────────────────────────────────────────
+function LoadingScreen({ visible }: { visible: boolean }) {
+  const { progress } = useProgress();
+  return (
+    <div
+      style={{
+        position: "absolute",
+        inset: 0,
+        backgroundColor: "#030507",
+        zIndex: 100, // Highest z-index to cover everything including LightBeam
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        opacity: visible ? 1 : 0,
+        transition: "opacity 1.5s ease-in-out",
+        pointerEvents: visible ? "auto" : "none",
+        color: "#ffffff",
+        fontFamily: "sans-serif",
+      }}
+    >
+      <div
+        style={{
+          letterSpacing: "3px",
+          textTransform: "uppercase",
+          fontSize: "12px",
+          marginBottom: "20px",
+        }}
+      >
+        Loading...
+      </div>
+      <div
+        style={{
+          width: "200px",
+          height: "2px",
+          backgroundColor: "rgba(255,255,255,0.1)",
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            width: `${progress}%`,
+            height: "100%",
+            backgroundColor: "#ffffff",
+            transition: "width 0.2s",
+          }}
+        />
+      </div>
+    </div>
   );
 }
 
@@ -226,7 +279,7 @@ export default function SceneOrchestrator() {
       } else {
         setOverlayColor("#000000");
       }
-      
+
       phaseRef.current = "black_fade_in";
       setOverlayOpaque(true); // trigger CSS fade-in
 
@@ -285,9 +338,9 @@ export default function SceneOrchestrator() {
 
   // ── Derived: is each scene visible? ──────────────────────────────────
   // During warmup all scenes are visible.  After warmup only the active scene.
-  const caveVisible    = warmupVisible || activeScene === "cave";
+  const caveVisible = warmupVisible || activeScene === "cave";
   const palaceVisible = warmupVisible || activeScene === "palace";
-  const oceanVisible   = warmupVisible || activeScene === "ocean";
+  const oceanVisible = warmupVisible || activeScene === "ocean";
 
   return (
     <main
@@ -298,7 +351,8 @@ export default function SceneOrchestrator() {
         overflow: "hidden",
       }}
     >
-      {/* The HTML overlay was replaced with WebGLFade inside the Canvas so LightBeam can render on top */}
+      {/* Elegant HTML Loading Screen to cover shader compilation stutter */}
+      <LoadingScreen visible={warmupVisible} />
 
       {/* ── Three.js Canvas ─────────────────────────────────────────────
           All scenes are ALWAYS mounted here.  The Suspense resolves only

@@ -10,7 +10,7 @@ import { BlendFunction } from "postprocessing";
 
 export default function Effect() {
   return (
-    <EffectComposer disableNormalPass>
+    <EffectComposer enableNormalPass={false}>
       <Bloom
         intensity={0.5}
         luminanceThreshold={0.8}
