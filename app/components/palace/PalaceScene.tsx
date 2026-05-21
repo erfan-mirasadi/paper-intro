@@ -35,7 +35,14 @@ export default function PalaceScene({ isActive, isVisible }: PalaceSceneProps) {
       <group visible={isVisible}>
         {/* AnimatedFog writes scene.fog globally — guard with isActive */}
         {isActive && (
-          <AnimatedFog color="#ffffff" baseDensity={0.01} maxDensity={0.015} />
+          <AnimatedFog
+            color="#ffffff"
+            fogType="linear"
+            near={10}
+            far={100}
+            baseDensity={0.04}
+            maxDensity={0.2}
+          />
         )}
 
         {/* Camera rig: writes directly to state.camera — no competing camera mount */}
@@ -60,7 +67,7 @@ export default function PalaceScene({ isActive, isVisible }: PalaceSceneProps) {
         <ambientLight intensity={0.1} />
 
         <PalaceModel position={[0, 3.5, 0]} scale={[1.6, 1, 2]} />
-        <MarbleFloor position={[0, -0.02, 0]} ambientIntensity={1.4} />
+        <MarbleFloor position={[0, -0.02, -70]} ambientIntensity={1.4} />
         <FallingIdols
           isActive={isActive}
           position={[0, 0, 0]}
@@ -70,9 +77,9 @@ export default function PalaceScene({ isActive, isVisible }: PalaceSceneProps) {
             scale: 0.4,
           }}
           idol2={{
-            position: [-14, 0, -55],
+            position: [-18, 0, -55],
             rotation: [0, Math.PI / 2, 0],
-            scale: 0.1,
+            scale: 17,
           }}
           idol3={{
             position: [10, 0, -25],

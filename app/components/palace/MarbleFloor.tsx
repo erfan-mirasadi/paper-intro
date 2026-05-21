@@ -16,7 +16,7 @@ export default function MarbleFloor({
   const marbleTexture = useTexture("/assets/cave/old/marble.png");
   useMemo(() => {
     marbleTexture.wrapS = marbleTexture.wrapT = THREE.RepeatWrapping;
-    marbleTexture.repeat.set(40, 200);
+    marbleTexture.repeat.set(40, 110);
     marbleTexture.anisotropy = 16;
   }, [marbleTexture]);
 
@@ -24,7 +24,7 @@ export default function MarbleFloor({
     <group {...props}>
       {/* <ambientLight intensity={ambientIntensity} /> */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[80, 400]} />
+        <planeGeometry args={[220, 260]} />
         <MeshReflectorMaterial
           map={marbleTexture}
           color="#ffffff"

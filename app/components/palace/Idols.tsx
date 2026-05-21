@@ -33,7 +33,7 @@ interface IdolsProps {
 }
 
 const IDOL_1_URL = "/assets/palace/idols/idol-1-opt.glb";
-const IDOL_2_URL = "/assets/palace/idols/idol-2.glb";
+const IDOL_2_URL = "/assets/palace/idols/idol-22-opt.glb";
 const IDOL_3_URL = "/assets/palace/idols/idol-3.glb";
 const IDOL_4_URL = "/assets/palace/idols/idol-4-opt.glb";
 

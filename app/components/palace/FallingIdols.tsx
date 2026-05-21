@@ -44,11 +44,16 @@ const DEFAULT_TRANSFORM: Required<ModelTransform> = {
   scale: 1,
 };
 
-const DEFAULT_TRIGGER_OFFSET = 22;
+const DEFAULT_TRIGGER_OFFSET = 24;
 const DEFAULT_FALL_DURATION = 1.5;
 const DEFAULT_FALL_ANGLE = MathUtils.degToRad(84);
 const DEFAULT_FORWARD_BEND = MathUtils.degToRad(12);
 const DEFAULT_STAGGER = 0.12;
+
+// --- WOBBLE SETTINGS ---
+// Change these values to adjust the "laghi" effect right before falling
+const WOBBLE_INTENSITY = 0.022; // Controls how much it wobbles
+const WOBBLE_SPEED = 6; // Controls how fast it wobbles
 
 export default function FallingIdols({
   isActive,
@@ -268,15 +273,31 @@ export default function FallingIdols({
         forwardBend *
         fallState.fallSign;
 
+      // Add a smooth wobble to the model while it is leaning back (laghi)
+      let modelShakeX = 0;
+      let modelShakeZ = 0;
+      if (eased < 0) {
+        // Use local time so it always starts at 0 phase
+        const localTime = t * fallDuration;
+        
+        // Create a smooth fade envelope based on the eased curve.
+        // `eased` smoothly goes from 0 to about -0.1, then back to 0. 
+        // Multiplying by -10 scales this to a 0 -> 1 -> 0 fade factor.
+        const fadeEnvelope = -eased * 10;
+        
+        modelShakeX = Math.sin(localTime * WOBBLE_SPEED) * WOBBLE_INTENSITY * fadeEnvelope;
+        modelShakeZ = Math.sin(localTime * WOBBLE_SPEED * 1.3) * WOBBLE_INTENSITY * fadeEnvelope;
+      }
+
       obj.position.set(
         config.basePosition[0],
         config.basePosition[1],
         config.basePosition[2],
       );
       obj.rotation.set(
-        config.baseRotation[0] + forwardAngle + frontAngle,
+        config.baseRotation[0] + forwardAngle + frontAngle + modelShakeX,
         config.baseRotation[1],
-        config.baseRotation[2],
+        config.baseRotation[2] + modelShakeZ,
         "YXZ",
       );
     });
