@@ -24,12 +24,7 @@
                     "id": "5hv8XUpQzD",
                     "position": 0,
                     "connectedRight": true,
-                    "handles": [
-                      0.5,
-                      1,
-                      0.5,
-                      0
-                    ],
+                    "handles": [0.5, 1, 0.5, 0],
                     "type": "bezier",
                     "value": 73.09999999999978
                   }
@@ -43,12 +38,7 @@
                     "id": "u1w5U8gF4b",
                     "position": 0,
                     "connectedRight": true,
-                    "handles": [
-                      0.5,
-                      1,
-                      0.5,
-                      0
-                    ],
+                    "handles": [0.5, 1, 0.5, 0],
                     "type": "bezier",
                     "value": -0.6099999999999604
                   }
@@ -163,12 +153,7 @@
                     "id": "AZHzj8cyq9",
                     "position": 0,
                     "connectedRight": true,
-                    "handles": [
-                      0.5,
-                      1,
-                      0.5,
-                      0
-                    ],
+                    "handles": [0.5, 1, 0.5, 0],
                     "type": "bezier",
                     "value": 5.530000000000045
                   },
@@ -176,12 +161,7 @@
                     "id": "gP3EiMyre3",
                     "position": 3.467,
                     "connectedRight": true,
-                    "handles": [
-                      0.5,
-                      1,
-                      0.5,
-                      0
-                    ],
+                    "handles": [0.5, 1, 0.5, 0],
                     "type": "bezier",
                     "value": -21.668588234404144
                   },
@@ -189,12 +169,7 @@
                     "id": "cLoWvrJgHN",
                     "position": 8.267,
                     "connectedRight": true,
-                    "handles": [
-                      0.4572171362889429,
-                      0.8121739460142195,
-                      0.5,
-                      0
-                    ],
+                    "handles": [0.4572171362889429, 0.8121739460142195, 0.5, 0],
                     "type": "bezier",
                     "value": -2.879881937176765
                   }
@@ -209,23 +184,17 @@
                     "position": 0,
                     "connectedRight": true,
                     "handles": [
-                      0.5,
-                      1,
-                      0.4347599164926931,
-                      0.33308865618388084
+                      0.5, 1, 0.4347599164926931, 0.33308865618388084
                     ],
                     "type": "bezier",
-                    "value": 45.30999999999986
+                    "value": 65.30999999999986
                   },
                   {
                     "id": "OQwoyBmyqc",
                     "position": 3.4,
                     "connectedRight": true,
                     "handles": [
-                      0.33500097385921135,
-                      1.0080617106286478,
-                      0.5,
-                      0
+                      0.33500097385921135, 1.0080617106286478, 0.5, 0
                     ],
                     "type": "bezier",
                     "value": 10.370000001625613
@@ -234,12 +203,7 @@
                     "id": "blgKV1r7lg",
                     "position": 7.033,
                     "connectedRight": true,
-                    "handles": [
-                      0.5,
-                      1,
-                      0.5,
-                      0
-                    ],
+                    "handles": [0.5, 1, 0.5, 0],
                     "type": "bezier",
                     "value": 10.00131723198804
                   }
@@ -254,10 +218,7 @@
                     "position": 0,
                     "connectedRight": true,
                     "handles": [
-                      0.5,
-                      1,
-                      0.41557165663760287,
-                      -0.14561693466313852
+                      0.5, 1, 0.41557165663760287, -0.14561693466313852
                     ],
                     "type": "bezier",
                     "value": -1.9999999999999414
@@ -267,10 +228,8 @@
                     "position": 3.4,
                     "connectedRight": true,
                     "handles": [
-                      0.5690617285879348,
-                      1.7863460913223421,
-                      0.33057098900557735,
-                      0.6852486629654904
+                      0.5690617285879348, 1.7863460913223421,
+                      0.33057098900557735, 0.6852486629654904
                     ],
                     "type": "bezier",
                     "value": -23.50999999929615
@@ -279,12 +238,7 @@
                     "id": "zqVahCs3SH",
                     "position": 7.033,
                     "connectedRight": true,
-                    "handles": [
-                      0.5,
-                      1,
-                      0.5,
-                      0
-                    ],
+                    "handles": [0.5, 1, 0.5, 0],
                     "type": "bezier",
                     "value": -2.985775934498985
                   }
@@ -298,12 +252,7 @@
                     "id": "qm1qktxaCi",
                     "position": 0,
                     "connectedRight": true,
-                    "handles": [
-                      0.5,
-                      1,
-                      0.5,
-                      0
-                    ],
+                    "handles": [0.5, 1, 0.5, 0],
                     "type": "bezier",
                     "value": -7.759999999999994
                   },
@@ -311,12 +260,7 @@
                     "id": "u3Gejf7Lve",
                     "position": 3.4,
                     "connectedRight": true,
-                    "handles": [
-                      0.5,
-                      1,
-                      0.5,
-                      0
-                    ],
+                    "handles": [0.5, 1, 0.5, 0],
                     "type": "bezier",
                     "value": -8.930000000000001
                   },
@@ -324,12 +268,7 @@
                     "id": "doiw32V5H5",
                     "position": 7.033,
                     "connectedRight": true,
-                    "handles": [
-                      0.5,
-                      1,
-                      0.5,
-                      0
-                    ],
+                    "handles": [0.5, 1, 0.5, 0],
                     "type": "bezier",
                     "value": -9.156881704392356
                   }
@@ -343,12 +282,7 @@
                     "id": "ig3xkFYNXo",
                     "position": 0,
                     "connectedRight": true,
-                    "handles": [
-                      0.5,
-                      1,
-                      0.5,
-                      0
-                    ],
+                    "handles": [0.5, 1, 0.5, 0],
                     "type": "bezier",
                     "value": 0.039999999999999966
                   },
@@ -356,12 +290,7 @@
                     "id": "vXdVWhduiY",
                     "position": 3.4,
                     "connectedRight": true,
-                    "handles": [
-                      0.5,
-                      1,
-                      0.5,
-                      0
-                    ],
+                    "handles": [0.5, 1, 0.5, 0],
                     "type": "bezier",
                     "value": -0.8500000000000003
                   },
@@ -369,12 +298,7 @@
                     "id": "3swDiU-Exn",
                     "position": 7.033,
                     "connectedRight": true,
-                    "handles": [
-                      0.5,
-                      1,
-                      0.5,
-                      0
-                    ],
+                    "handles": [0.5, 1, 0.5, 0],
                     "type": "bezier",
                     "value": -1.341577026183448
                   }
@@ -388,12 +312,7 @@
                     "id": "i2H727WVrM",
                     "position": 0,
                     "connectedRight": true,
-                    "handles": [
-                      0.5,
-                      1,
-                      0.5,
-                      0
-                    ],
+                    "handles": [0.5, 1, 0.5, 0],
                     "type": "bezier",
                     "value": -2.9999999999999947
                   },
@@ -401,12 +320,7 @@
                     "id": "xcIaMP3c8p",
                     "position": 3.4,
                     "connectedRight": true,
-                    "handles": [
-                      0.5,
-                      1,
-                      0.5,
-                      0
-                    ],
+                    "handles": [0.5, 1, 0.5, 0],
                     "type": "bezier",
                     "value": -2.849999999999997
                   },
@@ -414,12 +328,7 @@
                     "id": "0IMjN628p0",
                     "position": 7.033,
                     "connectedRight": true,
-                    "handles": [
-                      0.5,
-                      1,
-                      0.5,
-                      0
-                    ],
+                    "handles": [0.5, 1, 0.5, 0],
                     "type": "bezier",
                     "value": -3.001254469594903
                   }
@@ -440,7 +349,5 @@
     }
   },
   "definitionVersion": "0.4.0",
-  "revisionHistory": [
-    "AdlTye3m-DeQtmk5"
-  ]
+  "revisionHistory": ["AdlTye3m-DeQtmk5"]
 }

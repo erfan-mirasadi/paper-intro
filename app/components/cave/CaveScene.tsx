@@ -18,6 +18,7 @@ import { PerspectiveCamera as TheatrePerspectiveCamera } from "@theatre/r3f";
 import { SheetProvider } from "@theatre/r3f";
 import { getProject } from "@theatre/core";
 import CaveModel from "./CaveModel";
+import LowpolyMountain from "./LowpolyMountain";
 import AnimatedFog from "../environment/AnimatedFog";
 import SweepRevealWrapper from "../environment/SweepRevealWrapper";
 import DesertDust from "./DesertDust";
@@ -35,14 +36,16 @@ const TRIGGER_POSITION = 7.5;
 const CAMERA_SPEED = 0.56;
 
 interface CaveSceneProps {
-  isActive: boolean;  // controls camera rig, sequence, exit trigger
+  isActive: boolean; // controls camera rig, sequence, exit trigger
   isVisible: boolean; // controls group.visible (Three.js draw-call skip)
 }
 
 export default function CaveScene({ isActive, isVisible }: CaveSceneProps) {
   // Ref mirror for use inside useFrame / event-bus callbacks without stale closures
   const isActiveRef = useRef(isActive);
-  useEffect(() => { isActiveRef.current = isActive; }, [isActive]);
+  useEffect(() => {
+    isActiveRef.current = isActive;
+  }, [isActive]);
 
   const [isPlaying, setIsPlaying] = useState(true);
   const [isRevealed, setIsRevealed] = useState(false);
@@ -88,10 +91,7 @@ export default function CaveScene({ isActive, isVisible }: CaveSceneProps) {
     // visible={isVisible}: Three.js skips all draw calls but keeps shaders/geometry in VRAM
     <SheetProvider sheet={caveSheet}>
       <group visible={isVisible}>
-        <CameraRig
-          theatreCamRef={theatreCamRef}
-          isActive={isActive}
-        />
+        <CameraRig theatreCamRef={theatreCamRef} isActive={isActive} />
 
         {/* Invisible Theatre camera object — animated by caveSheet keyframes */}
         <TheatrePerspectiveCamera
@@ -109,9 +109,7 @@ export default function CaveScene({ isActive, isVisible }: CaveSceneProps) {
          * AnimatedFog writes to scene.fog globally.
          * Only render when isActive so inactive scenes don't fight over fog.
          */}
-        {isActive && (
-          <AnimatedFog color={"#c0a382"} maxDensity={0.025} />
-        )}
+        {isActive && <AnimatedFog color={"#c0a382"} maxDensity={0.005} />}
 
         {/* Skybox always mounted for warmup/preloading. isActive controls global state application, isVisible controls rendering */}
         <Skybox
@@ -127,14 +125,15 @@ export default function CaveScene({ isActive, isVisible }: CaveSceneProps) {
         />
 
         <SweepRevealWrapper
-          maxRadius={300}
-          speed={60}
+          maxRadius={900}
+          speed={100}
           mode="overlay"
-          autoTriggerDelay={1000}
+          autoTriggerDelay={1900}
           onRevealStart={handleSweepRevealStart}
           isActive={isActive}
         >
           <CaveModel />
+          <LowpolyMountain />
         </SweepRevealWrapper>
 
         <DesertDust />
@@ -158,7 +157,9 @@ function CameraRig({
   isActive: boolean;
 }) {
   const isActiveRef = useRef(isActive);
-  useEffect(() => { isActiveRef.current = isActive; }, [isActive]);
+  useEffect(() => {
+    isActiveRef.current = isActive;
+  }, [isActive]);
 
   const currentOffset = useRef(new THREE.Vector2(0, 0));
   const targetOffset = useRef(new THREE.Vector2(0, 0));
