@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useLayoutEffect } from "react";
+import { useRef, useLayoutEffect } from "react";
 import * as THREE from "three";
 import { useLoader } from "@react-three/fiber";
 
@@ -17,7 +17,7 @@ interface StaticCloudsProps {
 export default function StaticClouds({
   count = 400,
   spread = [5000, 400, 5000],
-  offset = [0, 350, -500],
+  offset = [0, 500, -500],
   baseScale = 300,
   opacity = 0.03,
   renderOrder = -4,

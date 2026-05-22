@@ -10,11 +10,6 @@ import * as THREE from "three";
 const gltfCache = new Map();
 const LIGHTHOUSE_URL = "/lighthouse-opt.glb";
 const BIRDS_URL = "/birds.glb";
-
-/**
- * The rotating light source for the lighthouse
- * Made significantly larger and brighter to ensure visibility at distance
- */
 function LighthouseLight({
   position = [0, 0, 0] as [number, number, number],
   speed = 1.2,

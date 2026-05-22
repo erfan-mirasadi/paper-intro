@@ -18,19 +18,19 @@ function PlaceholderMesh() {
 const INSTANCES = [
   {
     id: 1,
-    position: [600, 5, -4800] as [number, number, number],
+    position: [900, 5, -480] as [number, number, number],
     rotation: [0, Math.random() * Math.PI, 0] as [number, number, number],
     scale: 300,
   },
   {
     id: 2,
-    position: [-800, 10, -7200] as [number, number, number],
+    position: [-1800, 10, -72] as [number, number, number],
     rotation: [0, Math.random() * Math.PI, 0] as [number, number, number],
     scale: 450,
   },
   {
     id: 3,
-    position: [1200, 15, -10000] as [number, number, number],
+    position: [1200, 15, -100] as [number, number, number],
     rotation: [0, Math.random() * Math.PI, 0] as [number, number, number],
     scale: 1000,
   },

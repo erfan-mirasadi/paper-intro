@@ -235,7 +235,7 @@ function LoadingScreen({ visible }: { visible: boolean }) {
 
 export default function SceneOrchestrator() {
   // Which scene is logically active (controls camera, sequences, audio)
-  const [activeScene, setActiveScene] = useState<SceneId>("cave");
+  const [activeScene, setActiveScene] = useState<SceneId>("ocean");
 
   // During warmup ALL scenes are visible so Three.js compiles their shaders
   const [warmupVisible, setWarmupVisible] = useState(true);
