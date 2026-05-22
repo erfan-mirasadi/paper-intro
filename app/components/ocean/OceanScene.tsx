@@ -9,7 +9,7 @@
  * ──────────────────────────────────────────────────────────────────────────
  */
 
-import { useRef, useMemo, useEffect } from "react";
+import { useRef, useMemo, useEffect, useCallback } from "react";
 import * as THREE from "three";
 import { ThreeElement, useFrame, extend, useLoader } from "@react-three/fiber";
 import { Water } from "three/examples/jsm/objects/Water.js";
@@ -22,6 +22,7 @@ import ParallaxCamera from "../ParallaxCamera";
 import Skybox from "../environment/Skybox";
 import StaticStarsParticles from "../environment/StarsParticles";
 import AnimatedFog from "../environment/AnimatedFog";
+import SweepRevealWrapper from "../environment/SweepRevealWrapper";
 import { mainSheet } from "../TheatreSetup";
 import { requestTransition, onIntroComplete } from "../core/useSceneStore";
 
@@ -43,6 +44,8 @@ interface OceanSceneProps {
 }
 
 export default function OceanScene({ isActive, isVisible }: OceanSceneProps) {
+  const handleSweepRevealStart = useCallback(() => {}, []);
+
   return (
     <>
       {/* Background + global state: only when active */}
@@ -72,8 +75,20 @@ export default function OceanScene({ isActive, isVisible }: OceanSceneProps) {
         {/* Sequence driver + exit logic (CPU-free when not active) */}
         <OceanSequencer isActive={isActive} />
 
-        {/* Heavy static content — always in VRAM, never unmounts */}
-        <OceanSceneContent isActive={isActive} />
+        {/* Water is outside SweepRevealWrapper because it has its own custom shader */}
+        <OceanWater isActive={isActive} />
+
+        {/* Static objects (islands, lighthouse, mountains) wrapped in SweepReveal */}
+        <SweepRevealWrapper
+          maxRadius={35000}
+          speed={3000}
+          trailLength={500}
+          mode="overlay"
+          onRevealStart={handleSweepRevealStart}
+          isActive={isActive}
+        >
+          <OceanStaticObjects />
+        </SweepRevealWrapper>
       </group>
     </>
   );
@@ -150,23 +165,19 @@ function OceanSequencer({ isActive }: { isActive: boolean }) {
   return null;
 }
 
-// ── OceanSceneContent ─────────────────────────────────────────────────────
-// Pure visual content.  Always in VRAM.  Water animation paused when inactive.
+// ── OceanWater ────────────────────────────────────────────────────────────
+// Water only — kept OUTSIDE of SweepRevealWrapper to avoid shader conflicts.
+// The custom pulse wave shader has been removed per user request.
 
-function OceanSceneContent({ isActive }: { isActive: boolean }) {
+function OceanWater({ isActive }: { isActive: boolean }) {
   const isActiveRef = useRef(isActive);
   useEffect(() => {
     isActiveRef.current = isActive;
   }, [isActive]);
 
   const waterRef = useRef<Water>(null!);
-  const pulseZ = useRef(2000);
   const SCENE_SIZE = 25000;
-  const PULSE_LIMIT = SCENE_SIZE * -0.9;
-  const mountainBrightness = 0.1;
 
-  const darkWaterColor = useMemo(() => new THREE.Color(0x001e0f), []);
-  const brightWaterColor = useMemo(() => new THREE.Color(0x00aaff), []);
   const moonWorldPosition = useMemo(
     () => new THREE.Vector3(0, 1400, -6370),
     [],
@@ -176,8 +187,6 @@ function OceanSceneContent({ isActive }: { isActive: boolean }) {
     () => ({
       color: 0x5599cc,
       direction: new THREE.Vector3(0, 0.15, -1).normalize(),
-      shininess: "2500.0",
-      brightness: "10.0",
     }),
     [],
   );
@@ -210,67 +219,10 @@ function OceanSceneContent({ isActive }: { isActive: boolean }) {
     [SCENE_SIZE],
   );
 
-  useEffect(() => {
-    if (!waterRef.current) return;
-    const mat = waterRef.current.material;
-
-    mat.uniforms.uPulseZ = { value: 2000.0 };
-    mat.uniforms.uBaseColor = { value: darkWaterColor.clone() };
-    mat.uniforms.uPulseColor = { value: brightWaterColor.clone() };
-
-    mat.onBeforeCompile = (shader) => {
-      shader.uniforms.uPulseZ = mat.uniforms.uPulseZ;
-      shader.uniforms.uBaseColor = mat.uniforms.uBaseColor;
-      shader.uniforms.uPulseColor = mat.uniforms.uPulseColor;
-
-      shader.fragmentShader = `
-        uniform float uPulseZ;
-        uniform vec3 uBaseColor;
-        uniform vec3 uPulseColor;
-        ${shader.fragmentShader}
-      `;
-
-      shader.fragmentShader = shader.fragmentShader.replace(
-        "vec4 noise = getNoise( worldPosition.xz * size );",
-        `
-        float curve = (worldPosition.x * worldPosition.x) * 0.00015;
-        float energyRipple = sin(worldPosition.x * 0.05 + time * 4.0) * 15.0
-                           + cos(worldPosition.x * 0.1 - time * 3.0) * 10.0;
-        float pulseZAtX = uPulseZ + curve + energyRipple;
-        float distToPulse = abs(worldPosition.z - pulseZAtX);
-        float glowAlpha = smoothstep(300.0, 0.0, distToPulse);
-        float coreAlpha = smoothstep(40.0, 0.0, distToPulse);
-        float echoZ = pulseZAtX + 350.0;
-        float echoDist = abs(worldPosition.z - echoZ);
-        float echoAlpha = smoothstep(80.0, 0.0, echoDist) * 0.4;
-        vec3 baseWithGlow = mix(uBaseColor, uPulseColor, glowAlpha);
-        vec3 withCore = mix(baseWithGlow, vec3(0.8, 0.95, 1.0), coreAlpha);
-        vec3 dynamicWaterColor = mix(withCore, uPulseColor, echoAlpha);
-        vec4 noise = getNoise( worldPosition.xz * size );
-        `,
-      );
-
-      shader.fragmentShader = shader.fragmentShader
-        .replace(" * waterColor", " * dynamicWaterColor")
-        .replace("mix( waterColor,", "mix( dynamicWaterColor,")
-        .replace(
-          "100.0, 2.0, 0.5",
-          `${moonConfig.shininess}, ${moonConfig.brightness}, 0.5`,
-        );
-    };
-
-    mat.customProgramCacheKey = () => "pulse_water_shader";
-    mat.needsUpdate = true;
-  }, [darkWaterColor, brightWaterColor, moonConfig]);
-
   useFrame((state, delta) => {
-    // ── Guard: skip water animation tick when not active (CPU-free) ───
     if (!isActiveRef.current || !waterRef.current) return;
-
     const mat = waterRef.current.material;
     if (mat.uniforms?.time) mat.uniforms.time.value += delta * 0.35;
-    if (pulseZ.current > PULSE_LIMIT) pulseZ.current -= delta * 800;
-    if (mat.uniforms.uPulseZ) mat.uniforms.uPulseZ.value = pulseZ.current;
     if (mat.uniforms.sunDirection) {
       mat.uniforms.sunDirection.value
         .copy(moonWorldPosition)
@@ -279,14 +231,58 @@ function OceanSceneContent({ isActive }: { isActive: boolean }) {
     }
   });
 
+  return (
+    <group position={[0, -2, 0]}>
+      <water
+        ref={waterRef}
+        args={[waterGeometry, config]}
+        rotation-x={-Math.PI / 2}
+        position={[0, 0, 0]}
+      />
+      <mesh position={[0, -510, 0]}>
+        <boxGeometry args={[SCENE_SIZE, 1000, SCENE_SIZE]} />
+        <meshBasicMaterial
+          color={0x001220}
+          transparent
+          opacity={0.8}
+          depthWrite={false}
+        />
+      </mesh>
+    </group>
+  );
+}
+
+// ── OceanStaticObjects ─────────────────────────────────────────────────────
+// Islands, lighthouse, clouds, mountains — these are wrapped in SweepRevealWrapper.
+// Water is intentionally excluded here (handled by OceanWater separately).
+
+function OceanStaticObjects() {
+  const mountainBrightness = 0.1;
   const bgMountainPos = [0, -25, -14000] as const;
   const bgMountainStretch = [1.5, 1, 1] as const;
   const bgMountainScale = 40;
   const bgMountainSpread = 5000;
+  const WATER_SIZE = 25000;
 
   return (
     <>
       <StaticStarsParticles />
+
+      {/*
+       * Water-surface sweep overlay — a flat plane at the exact water level.
+       * Water's ShaderMaterial cannot receive the sweep shader injection directly,
+       * so this invisible plane acts as the "canvas" for the glow effect.
+       * opacity=0.08 keeps it invisible in normal view; sweep glow lights it up.
+       */}
+      <mesh position={[0, -1.8, 0]} rotation-x={-Math.PI / 2}>
+        <planeGeometry args={[WATER_SIZE, WATER_SIZE]} />
+        <meshBasicMaterial
+          color={0x001220}
+          transparent
+          opacity={0.08}
+          depthWrite={false}
+        />
+      </mesh>
 
       <Island />
       <Island2 />
@@ -331,27 +327,6 @@ function OceanSceneContent({ isActive }: { isActive: boolean }) {
           receiveSceneFog={true}
           sceneFogMultiplier={0.15}
         />
-      </group>
-
-      <group position={[0, -2, 0]}>
-        <water
-          ref={waterRef}
-          args={[waterGeometry, config]}
-          rotation-x={-Math.PI / 2}
-          position={[0, 0, 0]}
-          onPointerDown={(e) => {
-            pulseZ.current = e.camera.position.z;
-          }}
-        />
-        <mesh position={[0, -510, 0]}>
-          <boxGeometry args={[SCENE_SIZE, 1000, SCENE_SIZE]} />
-          <meshBasicMaterial
-            color={0x001220}
-            transparent
-            opacity={0.8}
-            depthWrite={false}
-          />
-        </mesh>
       </group>
     </>
   );

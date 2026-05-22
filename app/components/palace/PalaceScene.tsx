@@ -8,13 +8,14 @@
  * ──────────────────────────────────────────────────────────────────────────
  */
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useCallback } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import AnimatedFog from "../environment/AnimatedFog";
 import MarbleFloor from "./MarbleFloor";
 import PalaceModel from "./PalaceModel";
 import FallingIdols from "./FallingIdols";
+import SweepRevealWrapper from "../environment/SweepRevealWrapper";
 import { requestTransition } from "../core/useSceneStore";
 
 interface PalaceSceneProps {
@@ -23,6 +24,8 @@ interface PalaceSceneProps {
 }
 
 export default function PalaceScene({ isActive, isVisible }: PalaceSceneProps) {
+  const handleSweepRevealStart = useCallback(() => {}, []);
+
   return (
     <>
       {isActive && <color attach="background" args={["#ffffff"]} />}
@@ -44,31 +47,40 @@ export default function PalaceScene({ isActive, isVisible }: PalaceSceneProps) {
         <ambientLight intensity={0.1} />
 
         <PalaceModel position={[0, 3.5, 0]} scale={[1.6, 1, 2]} />
-        <MarbleFloor position={[0, -0.02, -70]} />
-        <FallingIdols
+
+        <SweepRevealWrapper
+          maxRadius={220}
+          speed={75}
+          mode="overlay"
+          onRevealStart={handleSweepRevealStart}
           isActive={isActive}
-          position={[0, 0, 0]}
-          idol1={{
-            position: [10, 0, -85],
-            rotation: [0, -Math.PI / 2, 0],
-            scale: 0.4,
-          }}
-          idol2={{
-            position: [-18, 0, -55],
-            rotation: [0, Math.PI / 2, 0],
-            scale: 17,
-          }}
-          idol3={{
-            position: [10, 0, -25],
-            rotation: [0, -Math.PI * 0.5, 0],
-            scale: 16,
-          }}
-          idol4={{
-            position: [-15, -0.9, 10],
-            rotation: [0, Math.PI / 2, 0],
-            scale: 37,
-          }}
-        />
+        >
+          <MarbleFloor position={[0, -0.02, -70]} />
+          <FallingIdols
+            isActive={isActive}
+            position={[0, 0, 0]}
+            idol1={{
+              position: [10, 0, -85],
+              rotation: [0, -Math.PI / 2, 0],
+              scale: 0.4,
+            }}
+            idol2={{
+              position: [-18, 0, -55],
+              rotation: [0, Math.PI / 2, 0],
+              scale: 17,
+            }}
+            idol3={{
+              position: [10, 0, -25],
+              rotation: [0, -Math.PI * 0.5, 0],
+              scale: 16,
+            }}
+            idol4={{
+              position: [-15, -0.9, 10],
+              rotation: [0, Math.PI / 2, 0],
+              scale: 37,
+            }}
+          />
+        </SweepRevealWrapper>
       </group>
     </>
   );
