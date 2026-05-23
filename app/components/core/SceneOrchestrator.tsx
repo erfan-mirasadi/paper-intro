@@ -81,6 +81,7 @@ type Phase =
   | "booting" // warmup in progress, overlay solid
   | "idle" // scene playing, no transition
   | "black_fade_in" // overlay 0→1 (ocean→cave loop)
+  | "black_hold" // screen is solid black, showing text
   | "black_fade_out" // overlay 1→0
   | "tunnel_in" // CloudTunnel ramping to opaque
   | "tunnel_out"; // CloudTunnel fading out
