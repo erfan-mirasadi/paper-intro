@@ -9,7 +9,7 @@
  * ──────────────────────────────────────────────────────────────────────────
  */
 
-import { useRef, useMemo, useEffect, useCallback } from "react";
+import { useRef, useMemo, useEffect, useCallback, useState } from "react";
 import * as THREE from "three";
 import {
   ThreeElement,
@@ -23,6 +23,7 @@ import Island from "./Island";
 import Island2 from "./Island2";
 // import Lighthouse from "./Lighthouse";
 import Volcano from "./Volcano";
+import OceanCamera from "./OceanCamera";
 import StaticClouds from "../environment/StaticClouds";
 // import Mountain2 from "./Mountain2";
 
@@ -30,7 +31,7 @@ import StaticClouds from "../environment/StaticClouds";
 import Skybox from "../environment/Skybox";
 import StaticStarsParticles from "../environment/StarsParticles";
 import AnimatedFog from "../environment/AnimatedFog";
-// import SweepRevealWrapper from "../environment/SweepRevealWrapper";
+import SweepRevealWrapper from "../environment/SweepRevealWrapper";
 import { mainSheet } from "../TheatreSetup";
 import { requestTransition, onIntroComplete } from "../core/useSceneStore";
 // import { Environment } from "@react-three/drei";
@@ -53,7 +54,20 @@ interface OceanSceneProps {
 }
 
 export default function OceanScene({ isActive, isVisible }: OceanSceneProps) {
-  const handleSweepRevealStart = useCallback(() => {}, []);
+  const [startVolcano, setStartVolcano] = useState(false);
+
+  // Shared shake state: Volcano writes intensity, OceanCamera reads & decays it.
+  // A plain ref avoids any React re-renders on every shake frame.
+  const shakeRef = useRef({ intensity: 0 });
+
+  const triggerCameraShake = useCallback(() => {
+    shakeRef.current.intensity = 55; // strong initial amplitude, decays in OceanCamera
+  }, []);
+
+  const handleSweepRevealStart = useCallback(() => {
+    // Delay the eruption slightly to let the sweep wave travel across the ocean
+    setTimeout(() => setStartVolcano(true), 1000);
+  }, []);
 
   return (
     <>
@@ -61,45 +75,30 @@ export default function OceanScene({ isActive, isVisible }: OceanSceneProps) {
       {isActive && <color attach="background" args={["#030507"]} />}
 
       <group visible={isVisible}>
-        {/*
-         * ParallaxCamera: Theatre.js-driven camera rig for Ocean.
-         * Now permanently mounted! We pass isActive so it only drives
-         * the global state.camera when OceanScene is actually active.
-         * This completely eliminates the React unmount/remount stutter.
-         */}
-        {/* <ParallaxCamera isActive={isActive} /> */}
-        <OceanCamera isActive={isActive} />
-
-        {/* AnimatedFog: writes scene.fog globally — guard with isActive */}
-        {/* {isActive && (
-          <AnimatedFog
-            color="#030507"
-            baseDensity={0.0004}
-            maxDensity={0.003}
-          />
-        )} */}
+        {/* OceanCamera: drives the global camera + applies camera shake */}
+        <OceanCamera isActive={isActive} shakeRef={shakeRef} />
 
         {/* Skybox always mounted for warmup/preloading. isActive controls global state application, isVisible controls rendering */}
         <Skybox isActive={isActive} isVisible={isVisible} />
-        {/* Add a studio-style HDR environment for lighting when the scene is active */}
-        {/* {isActive && <Environment preset="studio" background={false} />} */}
-        {/* Sequence driver + exit logic (CPU-free when not active) */}
-        {/* <OceanSequencer isActive={isActive} /> */}
 
         {/* Water is outside SweepRevealWrapper because it has its own custom shader */}
         <OceanWater isActive={isActive} />
 
         {/* Static objects (islands, lighthouse, mountains) wrapped in SweepReveal */}
-        {/* <SweepRevealWrapper
+        <SweepRevealWrapper
           maxRadius={35000}
           speed={3000}
           trailLength={500}
           mode="overlay"
           onRevealStart={handleSweepRevealStart}
           isActive={isActive}
-        > */}
-        <OceanStaticObjects />
-        {/* </SweepRevealWrapper> */}
+          autoTriggerDelay={500}
+        >
+          <OceanStaticObjects
+            startVolcano={startVolcano}
+            onVolcanoCameraShake={triggerCameraShake}
+          />
+        </SweepRevealWrapper>
       </group>
     </>
   );
@@ -171,94 +170,6 @@ function OceanSequencer({ isActive }: { isActive: boolean }) {
     ) {
       exitTriggeredRef.current = true;
       // Do NOT set isPlayingRef to false so the camera keeps moving during the fade!
-      requestTransition("black", "cave");
-    }
-  });
-
-  return null;
-}
-
-// ── OceanCamera ──────────────────────────────────────────────────────────
-// Writes directly to the global state.camera (the one persistent R3F camera)
-// so no competing camera object is ever mounted.
-// Completely idle (CPU-free) when !isActive.
-
-function OceanCamera({ isActive }: { isActive: boolean }) {
-  const { camera } = useThree();
-  const isActiveRef = useRef(isActive);
-  useEffect(() => {
-    isActiveRef.current = isActive;
-  }, [isActive]);
-
-  const isPausedRef = useRef(false);
-
-  const progressRef = useRef(0);
-  const currentOffset = useRef(new THREE.Vector2(0, 0));
-  const targetOffset = useRef(new THREE.Vector2(0, 0));
-  const exitTriggeredRef = useRef(false);
-
-  const start = useMemo(() => new THREE.Vector3(0, 200, 3000), []);
-  const end = useMemo(() => new THREE.Vector3(0, 200, -3500), []);
-  const lookAtTarget = useMemo(() => new THREE.Vector3(0, 100, -3500), []);
-  const travelDuration = 14;
-
-  // Configure global camera for this scene once
-  useEffect(() => {
-    if (camera instanceof THREE.PerspectiveCamera) {
-      camera.fov = 70;
-      camera.near = 0.1;
-      camera.far = 25000;
-      camera.updateProjectionMatrix();
-    }
-  }, [camera]);
-
-  // Reset on deactivation so next visit starts clean
-  useEffect(() => {
-    if (!isActive) {
-      progressRef.current = 0;
-      exitTriggeredRef.current = false;
-      isPausedRef.current = false;
-    }
-  }, [isActive]);
-
-  // Listen for Space key press to toggle pause
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (!isActiveRef.current) return;
-      if (e.code === "Space") {
-        e.preventDefault(); // Prevent scrolling the page
-        isPausedRef.current = !isPausedRef.current;
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
-
-  useFrame((state, delta) => {
-    // ── Guard: CPU-free when not active ───────────────────────────────
-    if (!isActiveRef.current) return;
-
-    if (!isPausedRef.current) {
-      // Advance the dolly progress continuously. No clamp so it never stops!
-      progressRef.current = progressRef.current + delta / travelDuration;
-    }
-
-    // ALWAYS update the camera position
-    // Three.js lerpVectors does not clamp alpha, so it will continue extrapolating past 1.0
-    camera.position.lerpVectors(start, end, progressRef.current);
-    camera.lookAt(lookAtTarget);
-
-    // Mouse parallax
-    targetOffset.current.x = -state.pointer.x * 0.25;
-    targetOffset.current.y = state.pointer.y * 0.18;
-    currentOffset.current.lerp(targetOffset.current, 0.05);
-    camera.rotateY(currentOffset.current.x);
-    camera.rotateX(currentOffset.current.y);
-
-    // Exit trigger: start transition slightly before the end
-    // so it fades out completely while the camera is still in motion.
-    if (!exitTriggeredRef.current && progressRef.current >= 0.91) {
-      exitTriggeredRef.current = true;
       requestTransition("black", "cave");
     }
   });
@@ -357,7 +268,13 @@ function OceanWater({ isActive }: { isActive: boolean }) {
 // Islands, lighthouse, clouds, mountains — these are wrapped in SweepRevealWrapper.
 // Water is intentionally excluded here (handled by OceanWater separately).
 
-function OceanStaticObjects() {
+function OceanStaticObjects({
+  startVolcano,
+  onVolcanoCameraShake,
+}: {
+  startVolcano?: boolean;
+  onVolcanoCameraShake?: () => void;
+}) {
   const mountainBrightness = 0.1;
   const bgMountainPos = [0, -25, -14000] as const;
   const bgMountainStretch = [1.5, 1, 1] as const;
@@ -385,10 +302,10 @@ function OceanStaticObjects() {
         />
       </mesh>
 
-      <Island />
-      <Island2 />
+      {/* <Island />
+      <Island2 /> */}
       {/* <Lighthouse /> */}
-      <StaticClouds opacity={0.1} />
+      {/* <StaticClouds opacity={0.1} /> */}
       {/* <Mountain2
         position={[0, 500, 10000]}
         rotation={[0, 4, 0]}
@@ -402,8 +319,13 @@ function OceanStaticObjects() {
         color={[0.2, 0.2, 0.2]}
       /> */}
 
-      {/* Volcanic feature placed in the distance — separate component */}
-      <Volcano position={[0, -3, 0]} scale={30} />
+      {/* Volcanic feature — sequence driven by startVolcano; shake wired to OceanCamera */}
+      <Volcano
+        position={[0, -30, 0]}
+        scale={60}
+        startSequence={startVolcano}
+        onCameraShakeStart={onVolcanoCameraShake}
+      />
       {/* 
       <group position={bgMountainPos} scale={bgMountainStretch}>
         <Mountain2

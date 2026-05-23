@@ -26,7 +26,7 @@ export default function StarsParticles() {
   const HEIGHT_MAX = 350;
 
   // We MUST increase the size dramatically so the shader has a "canvas" to draw the glow!
-  const STAR_SIZE = 80.0;
+  const STAR_SIZE = 20.0;
   // =====================
 
   const materialRef = useRef<THREE.PointsMaterial>(null!);

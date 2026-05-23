@@ -21,7 +21,11 @@ const SCENE_COLORS: Record<SceneId, number> = {
   ocean: 0xffdd44, // yellow
 };
 
-export default function LightBeam({ activeScene = "cave" }: { activeScene?: SceneId }) {
+export default function LightBeam({
+  activeScene = "cave",
+}: {
+  activeScene?: SceneId;
+}) {
   // Main group that will forcefully attach itself to the active camera
   const mainGroupRef = useRef<THREE.Group>(null);
   const linesGroupRef = useRef<THREE.Group>(null);
@@ -35,6 +39,11 @@ export default function LightBeam({ activeScene = "cave" }: { activeScene?: Scen
   const clickVelocity = useRef(0);
   const clickTarget = useRef(0);
 
+  const loopAnimState = useRef({
+    active: false,
+    progress: 0.0,
+  });
+
   const materialsRef = useRef<THREE.ShaderMaterial[]>([]);
   const glowMaterialsRef = useRef<THREE.ShaderMaterial[]>([]);
 
@@ -45,8 +54,14 @@ export default function LightBeam({ activeScene = "cave" }: { activeScene?: Scen
   // Dedicated Object3D to act as the SpotLight's target
   const spotLightTarget = useMemo(() => new THREE.Object3D(), []);
 
-  const currentColor = useMemo(() => new THREE.Color(SCENE_COLORS[activeScene || "cave"]), []);
-  const targetColor = useMemo(() => new THREE.Color(SCENE_COLORS[activeScene || "cave"]), []);
+  const currentColor = useMemo(
+    () => new THREE.Color(SCENE_COLORS[activeScene || "cave"]),
+    [],
+  );
+  const targetColor = useMemo(
+    () => new THREE.Color(SCENE_COLORS[activeScene || "cave"]),
+    [],
+  );
 
   useEffect(() => {
     targetColor.setHex(SCENE_COLORS[activeScene || "cave"]);
@@ -73,6 +88,7 @@ export default function LightBeam({ activeScene = "cave" }: { activeScene?: Scen
       time: { value: 0 },
       color: { value: currentColor },
       clickPulse: { value: 0.0 },
+      loopAnim: { value: 0.0 },
       mouse: { value: new THREE.Vector2(0, 0) },
     }),
     [currentColor],
@@ -83,6 +99,7 @@ export default function LightBeam({ activeScene = "cave" }: { activeScene?: Scen
       time: { value: 0 },
       color: { value: currentColor },
       clickPulse: { value: 0.0 },
+      loopAnim: { value: 0.0 },
       mouse: { value: new THREE.Vector2(0, 0) },
     }),
     [currentColor],
@@ -92,6 +109,7 @@ export default function LightBeam({ activeScene = "cave" }: { activeScene?: Scen
     uniform float time;
     uniform float lineIndex;
     uniform float clickPulse;
+    uniform float loopAnim;
     uniform vec2 mouse;
     varying vec2 vUv;
 
@@ -113,6 +131,27 @@ export default function LightBeam({ activeScene = "cave" }: { activeScene?: Scen
       // Keep the basic curve spreading and mouse interaction
       pos.x += cos(angle) * baseRadius + mouseReactX;
       pos.y += sin(angle) * baseRadius + mouseReactY;
+
+      // --- DISNEY STAR ROLLER COASTER LOOP EFFECT ---
+      float maxDelay = 2.5; 
+      float totalAngle = 4.0 * 3.14159265; // 2 full loops
+      float angleProgress = loopAnim * (totalAngle + maxDelay);
+      float angleDelay = (1.0 - vUv.x) * maxDelay;
+      float localAngle = clamp(angleProgress - angleDelay, 0.0, totalAngle);
+
+      float tipInfluence = smoothstep(0.2, 1.0, vUv.x); 
+      
+      float loopRadius = 3.5 * tipInfluence;
+
+      // All beams follow the exact same loop direction together
+      float dx = sin(localAngle) * loopRadius;
+      float dy = (1.0 - cos(localAngle)) * loopRadius;
+      float dz = sin(localAngle) * loopRadius * 0.5; 
+
+      // Angle the loop slightly to the right for a better 3D look
+      pos.x += dx * 0.7;
+      pos.y += dy;
+      pos.z += dz;
 
       gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
     }
@@ -192,6 +231,8 @@ export default function LightBeam({ activeScene = "cave" }: { activeScene?: Scen
     };
     const onPointerDown = () => {
       clickVelocity.current += 2.5;
+      loopAnimState.current.active = true;
+      loopAnimState.current.progress = 0.0;
     };
 
     window.addEventListener("pointermove", onMouseMove as EventListener);
@@ -224,6 +265,14 @@ export default function LightBeam({ activeScene = "cave" }: { activeScene?: Scen
     clickVelocity.current *= Math.max(0, 1.0 - 1.5 * delta);
     clickValue.current += clickVelocity.current * delta;
 
+    if (loopAnimState.current.active) {
+      loopAnimState.current.progress += delta * 0.45; // ~2.2 seconds to complete
+      if (loopAnimState.current.progress >= 1.0) {
+        loopAnimState.current.progress = 0.0;
+        loopAnimState.current.active = false;
+      }
+    }
+
     const t = state.clock.getElapsedTime();
 
     currentColor.lerp(targetColor, 3.0 * delta);
@@ -238,6 +287,8 @@ export default function LightBeam({ activeScene = "cave" }: { activeScene?: Scen
         );
       if (mat.uniforms.clickPulse)
         mat.uniforms.clickPulse.value = clickValue.current;
+      if (mat.uniforms.loopAnim)
+        mat.uniforms.loopAnim.value = loopAnimState.current.progress;
     };
     materialsRef.current.forEach(updateMat);
     glowMaterialsRef.current.forEach(updateMat);

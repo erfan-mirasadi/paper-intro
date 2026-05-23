@@ -7,35 +7,53 @@ import { getSharedKTX2Loader, getSharedDRACOLoader } from "../SharedLoaders";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import * as THREE from "three";
 
-const gltfCache = new Map();
-const VOLCANO_URL = "/assets/ocean/volcano-opt.glb";
+// ─────────────────────────────────────────────────────────────────────────────
+// TIMELINE CONFIG  ← All timing lives here. Nothing else needs to change.
+// ─────────────────────────────────────────────────────────────────────────────
 
-function loadVolcanoScene(gl: THREE.WebGLRenderer) {
-  if (gltfCache.has(VOLCANO_URL)) {
-    return Promise.resolve(gltfCache.get(VOLCANO_URL));
+const TIMELINE = {
+  videoDelay: 0.5, // sec: camera shake + video start after sequence begins
+  videoDuration: 3.5, // sec: exact length of VFX-volcano.mp4
+  preEndOffset: 2.5, // sec: smoke & particles appear this early before video ends
+} as const;
+
+/** Absolute timestamps derived once at module load. Read-only. */
+const T = {
+  cameraShake: TIMELINE.videoDelay,
+  videoStart: TIMELINE.videoDelay,
+  smokeStart:
+    TIMELINE.videoDelay + TIMELINE.videoDuration - TIMELINE.preEndOffset,
+  particleStart:
+    TIMELINE.videoDelay + TIMELINE.videoDuration - TIMELINE.preEndOffset,
+} as const;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Model loading (cached across renders / re-mounts)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const gltfCache = new Map<string, THREE.Group>();
+const VOLCANO_URL = "/assets/ocean/volcano-7.glb";
+
+function loadVolcanoScene(
+  gl: THREE.WebGLRenderer,
+  url: string = VOLCANO_URL,
+): Promise<THREE.Group> {
+  if (gltfCache.has(url)) {
+    return Promise.resolve(gltfCache.get(url)!);
   }
-
-  return new Promise<THREE.Group>((resolve, reject) => {
+  return new Promise((resolve, reject) => {
     const loader = new GLTFLoader();
-
-    const draco = getSharedDRACOLoader();
-    loader.setDRACOLoader(draco);
-
-    if (MeshoptDecoder) {
-      loader.setMeshoptDecoder(MeshoptDecoder);
-    }
-
-    const ktx2 = getSharedKTX2Loader(gl);
-    loader.setKTX2Loader(ktx2);
-
+    loader.setDRACOLoader(getSharedDRACOLoader());
+    if (MeshoptDecoder) loader.setMeshoptDecoder(MeshoptDecoder);
+    loader.setKTX2Loader(getSharedKTX2Loader(gl));
     loader.load(
-      VOLCANO_URL,
+      url,
       (gltf) => {
-        gltfCache.set(VOLCANO_URL, gltf.scene);
+        gltfCache.set(url, gltf.scene);
         resolve(gltf.scene);
       },
       undefined,
-      (err) => reject(err),
+      reject,
     );
   });
 }
@@ -44,137 +62,270 @@ export function preloadVolcano(gl: THREE.WebGLRenderer) {
   return loadVolcanoScene(gl);
 }
 
-// ── Flowing Lava Material Animation ────────────────────────────────────────
-function FlowingLavaShader({ scene }: { scene: THREE.Group }) {
-  const lavaMaterials = useMemo(() => {
-    const mats: THREE.Material[] = [];
-    scene.traverse((child) => {
-      if ((child as THREE.Mesh).isMesh) {
-        const mat = (child as THREE.Mesh).material;
-        if (Array.isArray(mat)) {
-          mat.forEach((m) => mats.push(m));
-        } else {
-          mats.push(mat);
-        }
-      }
+// ─────────────────────────────────────────────────────────────────────────────
+// VideoLayer — plays VFX-volcano.mp4 exactly ONCE.
+// Mounted/visible only when `visible` is true (after T.videoStart).
+// ─────────────────────────────────────────────────────────────────────────────
+
+function VideoLayer({ visible }: { visible: boolean }) {
+  const [texture, setTexture] = useState<THREE.VideoTexture | null>(null);
+  const [aspect, setAspect] = useState(1);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  useEffect(() => {
+    const video = document.createElement("video");
+    video.src = "/assets/ocean/VFX-volcano.mp4";
+    video.crossOrigin = "anonymous";
+    video.loop = false; // ← plays exactly ONCE
+    video.muted = true;
+    video.playsInline = true;
+    videoRef.current = video;
+
+    video.addEventListener("loadedmetadata", () => {
+      if (video.videoHeight > 0)
+        setAspect(video.videoWidth / video.videoHeight);
     });
 
-    // Filter for materials that might be lava based on name or emissive properties
-    return mats.filter((m) => {
-      const stdMat = m as THREE.MeshStandardMaterial;
-      const isLavaName = m.name.toLowerCase().match(/lava|magma|fire|red|glow/);
-      const hasEmissive =
-        stdMat.emissive && (stdMat.emissive.r > 0 || stdMat.emissiveMap);
-      return isLavaName || hasEmissive;
-    });
-  }, [scene]);
+    const tex = new THREE.VideoTexture(video);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    setTexture(tex);
 
-  useFrame((_, delta) => {
-    const safeDelta = Math.min(delta, 0.1);
-    lavaMaterials.forEach((mat) => {
-      const stdMat = mat as THREE.MeshStandardMaterial;
-      if (stdMat.map) {
-        stdMat.map.wrapS = THREE.RepeatWrapping;
-        stdMat.map.wrapT = THREE.RepeatWrapping;
-        stdMat.map.offset.y -= safeDelta * 0.05; // Flow downwards slowly
-      }
-      if (stdMat.emissiveMap) {
-        stdMat.emissiveMap.wrapS = THREE.RepeatWrapping;
-        stdMat.emissiveMap.wrapT = THREE.RepeatWrapping;
-        stdMat.emissiveMap.offset.y -= safeDelta * 0.05;
-      }
-    });
-  });
+    return () => {
+      video.pause();
+      video.removeAttribute("src");
+      video.load();
+      tex.dispose();
+    };
+  }, []);
 
-  return null;
+  // Start playback the moment this layer becomes visible
+  useEffect(() => {
+    if (visible && videoRef.current) {
+      videoRef.current
+        .play()
+        .catch((e) => console.warn("Volcano video play failed:", e));
+    }
+  }, [visible]);
+
+  if (!texture) return null;
+
+  const height = 20;
+  return (
+    <sprite
+      visible={visible}
+      position={[0, 12, 0]}
+      scale={[height * aspect, height, 1]}
+    >
+      <spriteMaterial
+        map={texture}
+        blending={THREE.AdditiveBlending}
+        transparent
+        depthWrite={false}
+        toneMapped={false}
+        color={new THREE.Color(1.2, 1.2, 1.2)} // Slight boost for vividness, without breaking black levels
+      />
+    </sprite>
+  );
 }
 
-// ── Volcano Erupting Particles (Scattered Embers) ───────────────────────
-function VolcanoEruptionParticles() {
-  const count = 300; // Number of spewing embers
+// ─────────────────────────────────────────────────────────────────────────────
+// SmokeParticles — instanced billboard smoke.
+// `progressRef` (0 → 1) drives both scale and opacity, enabling a smooth
+// "rise from below" reveal when the ref value goes from 0 to 1.
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface SmokeConfig {
+  count: number;
+  color: string;
+  opacity: number; // max opacity at progress=1
+  spread: number; // XZ spawn radius
+}
+
+function SmokeParticles({
+  config,
+  progressRef,
+}: {
+  config: SmokeConfig;
+  progressRef: React.MutableRefObject<number>;
+}) {
   const meshRef = useRef<THREE.InstancedMesh>(null!);
+  const texture = useLoader(THREE.TextureLoader, "/img/ulap.png");
   const dummy = useMemo(() => new THREE.Object3D(), []);
 
-  // A global timer for the eruption bursts
-  const eruptionState = useRef({
-    timer: 0,
-    isErupting: false,
-  });
-
-  const particles = useMemo(() => {
-    return Array.from({ length: count }, () => {
-      return {
-        x: (Math.random() - 0.5) * 2,
-        y: Math.random() * 5 + 8,
-        z: (Math.random() - 0.5) * 2,
-        vx: (Math.random() - 0.5) * 18,
-        vy: Math.random() * 25 + 15,
-        vz: (Math.random() - 0.5) * 18,
-        scale: 0, // Start invisible/dead
-        life: 0,
-      };
-    });
-  }, [count]);
+  const particles = useMemo(
+    () =>
+      Array.from({ length: config.count }, () => ({
+        x: (Math.random() - 0.5) * config.spread,
+        y: Math.random() * 10 - 5,
+        z: (Math.random() - 0.5) * config.spread,
+        speed: Math.random() * 0.5 + 0.3,
+        scale: Math.random() * 8 + 4,
+        rot: Math.random() * Math.PI * 2,
+        rotSpeed: (Math.random() - 0.5) * 0.015,
+      })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [config.count, config.spread],
+  );
 
   useFrame((_, delta) => {
     if (!meshRef.current) return;
-    const safeDelta = Math.min(delta, 0.1);
+    const dt = Math.min(delta, 0.1);
+    const p = progressRef.current;
 
-    const state = eruptionState.current;
-    state.timer -= safeDelta;
+    // Calculate ease-out for both scale and position
+    const easeOut = 1 - Math.pow(1 - p, 3); // cubic ease-out
 
-    // Manage eruption burst timing
-    if (state.timer <= 0) {
-      if (state.isErupting) {
-        state.isErupting = false;
-        state.timer = Math.random() * 4 + 3; // Wait 3 to 7 seconds between bursts
-      } else {
-        state.isErupting = true;
-        state.timer = Math.random() * 1.5 + 0.5; // Erupt for 0.5 to 2 seconds
+    particles.forEach((pt, i) => {
+      pt.y += pt.speed * dt * 8;
+      pt.rot += pt.rotSpeed;
+      pt.scale += dt * 0.8;
+      pt.x += (Math.random() - 0.5) * dt * 0.5;
+      pt.z += (Math.random() - 0.5) * dt * 0.5;
+
+      if (pt.y > 25) {
+        pt.y = Math.random() * 4 - 8;
+        pt.x = (Math.random() - 0.5) * config.spread;
+        pt.z = (Math.random() - 0.5) * config.spread;
+        pt.scale = Math.random() * 6 + 4;
+      }
+
+      dummy.position.set(pt.x, pt.y, pt.z);
+      dummy.rotation.set(0, 0, pt.rot);
+      const s = pt.scale * easeOut; // scale grows smoothly from 0 to full size
+      dummy.scale.set(s, s, 1);
+      dummy.updateMatrix();
+      meshRef.current.setMatrixAt(i, dummy.matrix);
+    });
+
+    meshRef.current.instanceMatrix.needsUpdate = true;
+
+    // Gentle rise from slightly inside the crater
+    meshRef.current.position.y = 2 + easeOut * 4; // rises from Y=2 to Y=6 slowly
+
+    // Fade material opacity quickly in the first 20% of progress to avoid popping
+    const mat = meshRef.current.material as THREE.MeshBasicMaterial;
+    if (mat) mat.opacity = config.opacity * Math.min(p * 5, 1);
+  });
+
+  return (
+    <instancedMesh
+      ref={meshRef}
+      args={[undefined, undefined, config.count]}
+      position={[0, 6, 0]}
+      frustumCulled={false}
+    >
+      <planeGeometry args={[1, 1]} />
+      <meshBasicMaterial
+        map={texture}
+        transparent
+        opacity={0}
+        depthWrite={false}
+        color={config.color}
+      />
+    </instancedMesh>
+  );
+}
+
+// Smoke preset configs — easy to tune, declared at module level (no re-allocation)
+const BLACK_SMOKE: SmokeConfig = {
+  count: 50,
+  color: "#030303",
+  opacity: 0.3,
+  spread: 2.5,
+};
+const ASH_SMOKE: SmokeConfig = {
+  count: 20,
+  color: "#777777",
+  opacity: 0.25,
+  spread: 8.0,
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ParticleLayer — instanced eruption embers with burst cycle.
+// CPU cost: zero when `active` is false.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const EMBER_COUNT = 300;
+
+function ParticleLayer({ active }: { active: boolean }) {
+  const meshRef = useRef<THREE.InstancedMesh>(null!);
+  const dummy = useMemo(() => new THREE.Object3D(), []);
+  const activeRef = useRef(active);
+  useEffect(() => {
+    activeRef.current = active;
+  }, [active]);
+
+  // Burst state stored in a ref (no re-renders needed)
+  const burst = useRef({ timer: 0, isErupting: false });
+
+  const embers = useMemo(
+    () =>
+      Array.from({ length: EMBER_COUNT }, () => ({
+        x: 0,
+        y: 8,
+        z: 0,
+        vx: 0,
+        vy: 0,
+        vz: 0,
+        scale: 0,
+        life: 0,
+      })),
+    [],
+  );
+
+  useFrame((_, delta) => {
+    if (!meshRef.current) return;
+    const dt = Math.min(delta, 0.1);
+    const b = burst.current;
+
+    // Advance burst timer only while active
+    if (activeRef.current) {
+      b.timer -= dt;
+      if (b.timer <= 0) {
+        b.isErupting = !b.isErupting;
+        b.timer = b.isErupting
+          ? Math.random() * 2.0 + 1.0 // erupt for 1–3 s
+          : Math.random() * 0.8 + 0.2; // rest for 0.2–1 s (much shorter wait)
       }
     }
 
-    particles.forEach((p, i) => {
+    embers.forEach((p, i) => {
       if (p.life > 0) {
-        // Active particle physics
-        p.vy -= safeDelta * 40; // Gravity
-        p.x += p.vx * safeDelta;
-        p.y += p.vy * safeDelta;
-        p.z += p.vz * safeDelta;
-
-        p.life -= safeDelta;
-        p.scale -= safeDelta * 0.02; // Shrink slowly
-
-        if (p.y < -15 || p.life <= 0 || p.scale <= 0) {
-          p.life = 0; // kill it
-          p.scale = 0;
-        }
-      } else if (state.isErupting && Math.random() < 0.2) {
-        // Respawn randomly during an active eruption burst
+        // Physics integration
+        p.vy -= dt * 40;
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.z += p.vz * dt;
+        p.life -= dt;
+        p.scale -= dt * 0.02;
+        if (p.y < -15 || p.life <= 0 || p.scale <= 0) p.life = p.scale = 0;
+      } else if (activeRef.current && b.isErupting && Math.random() < 0.2) {
+        // Spawn a fresh ember during an active burst
         p.x = (Math.random() - 0.5) * 2;
         p.y = Math.random() * 2 + 8;
         p.z = (Math.random() - 0.5) * 2;
         p.vx = (Math.random() - 0.5) * 20;
         p.vy = Math.random() * 30 + 15;
         p.vz = (Math.random() - 0.5) * 20;
-        p.scale = Math.random() * 0.05 + 0.01; // EXTREMELY tiny scale
+        p.scale = Math.random() * 0.05 + 0.01;
         p.life = Math.random() * 1.5 + 0.5;
       } else {
-        p.scale = 0; // ensure invisible when dead
+        p.scale = 0;
       }
 
       dummy.position.set(p.x, p.y, p.z);
-      dummy.scale.set(p.scale, p.scale, p.scale);
+      dummy.scale.setScalar(p.scale);
       dummy.updateMatrix();
       meshRef.current.setMatrixAt(i, dummy.matrix);
     });
+
     meshRef.current.instanceMatrix.needsUpdate = true;
   });
 
   return (
     <instancedMesh
       ref={meshRef}
-      args={[undefined, undefined, count]}
+      args={[undefined, undefined, EMBER_COUNT]}
       position={[0, 0, 0]}
       frustumCulled={false}
     >
@@ -184,143 +335,13 @@ function VolcanoEruptionParticles() {
   );
 }
 
-// ── Volcano Smoke Particle System ──────────────────────────────────────────
-function VolcanoSmoke() {
-  const count = 50; // Drastically reduced volume (thickness)
-  const meshRef = useRef<THREE.InstancedMesh>(null!);
-  const texture = useLoader(THREE.TextureLoader, "/img/ulap.png");
+// ─────────────────────────────────────────────────────────────────────────────
+// VolcanoLighting — warm magma glow lights; always on once the model is shown.
+// ─────────────────────────────────────────────────────────────────────────────
 
-  const dummy = useMemo(() => new THREE.Object3D(), []);
-
-  const particles = useMemo(() => {
-    return Array.from({ length: count }, () => ({
-      x: (Math.random() - 0.5) * 2.5, // Tighter radius
-      y: Math.random() * 10 - 5,
-      z: (Math.random() - 0.5) * 2.5, // Tighter radius
-      speed: Math.random() * 0.5 + 0.3,
-      scale: Math.random() * 8 + 4, // Smaller individual smoke clouds
-      rot: Math.random() * Math.PI * 2,
-      rotSpeed: (Math.random() - 0.5) * 0.01,
-    }));
-  }, [count]);
-
-  useFrame((_, delta) => {
-    if (!meshRef.current) return;
-    const safeDelta = Math.min(delta, 0.1);
-
-    particles.forEach((p, i) => {
-      p.y += p.speed * safeDelta * 8;
-      p.rot += p.rotSpeed;
-      p.scale += safeDelta * 0.8; // Grow slower
-      p.x += (Math.random() - 0.5) * safeDelta * 0.5; // Less horizontal drift
-      p.z += (Math.random() - 0.5) * safeDelta * 0.5;
-
-      if (p.y > 25) {
-        p.y = Math.random() * 4 - 8;
-        p.x = (Math.random() - 0.5) * 2.5; // Reset tightly
-        p.z = (Math.random() - 0.5) * 2.5; // Reset tightly
-        p.scale = Math.random() * 6 + 4;
-      }
-
-      dummy.position.set(p.x, p.y, p.z);
-      dummy.rotation.set(0, 0, p.rot);
-      dummy.scale.set(p.scale, p.scale, 1);
-      dummy.updateMatrix();
-      meshRef.current.setMatrixAt(i, dummy.matrix);
-    });
-    meshRef.current.instanceMatrix.needsUpdate = true;
-  });
-
+function VolcanoLighting() {
   return (
-    <instancedMesh
-      ref={meshRef}
-      args={[undefined, undefined, count]}
-      position={[0, 6, 0]}
-      frustumCulled={false}
-    >
-      <planeGeometry args={[1, 1]} />
-      <meshBasicMaterial
-        map={texture}
-        transparent={true}
-        opacity={0.3} // Lower opacity for thinner smoke
-        depthWrite={false}
-        color="#030303" // Pitch black smoke
-      />
-    </instancedMesh>
-  );
-}
-
-// ── Volcano Ash Smoke (Wider, Gray Smoke) ────────────────────────────────
-function VolcanoAshSmoke() {
-  const count = 20; // Less volume compared to black smoke
-  const meshRef = useRef<THREE.InstancedMesh>(null!);
-  const texture = useLoader(THREE.TextureLoader, "/img/ulap.png");
-
-  const dummy = useMemo(() => new THREE.Object3D(), []);
-
-  const particles = useMemo(() => {
-    return Array.from({ length: count }, () => ({
-      x: (Math.random() - 0.5) * 8, // Wider spread right from the crater
-      y: Math.random() * 10 - 2,
-      z: (Math.random() - 0.5) * 8,
-      speed: Math.random() * 0.4 + 0.2, // Slower rise
-      scale: Math.random() * 10 + 6,
-      rot: Math.random() * Math.PI * 2,
-      rotSpeed: (Math.random() - 0.5) * 0.02, // Slightly faster rotation
-    }));
-  }, [count]);
-
-  useFrame((_, delta) => {
-    if (!meshRef.current) return;
-    const safeDelta = Math.min(delta, 0.1);
-
-    particles.forEach((p, i) => {
-      p.y += p.speed * safeDelta * 7;
-      p.rot += p.rotSpeed;
-      p.scale += safeDelta * 1.5; // Grow faster for a spread-out effect
-      p.x += (Math.random() - 0.5) * safeDelta * 2.0; // More horizontal drift
-      p.z += (Math.random() - 0.5) * safeDelta * 2.0;
-
-      if (p.y > 28) {
-        p.y = Math.random() * 4 - 2;
-        p.x = (Math.random() - 0.5) * 8;
-        p.z = (Math.random() - 0.5) * 8;
-        p.scale = Math.random() * 8 + 6;
-      }
-
-      dummy.position.set(p.x, p.y, p.z);
-      dummy.rotation.set(0, 0, p.rot);
-      dummy.scale.set(p.scale, p.scale, 1);
-      dummy.updateMatrix();
-      meshRef.current.setMatrixAt(i, dummy.matrix);
-    });
-    meshRef.current.instanceMatrix.needsUpdate = true;
-  });
-
-  return (
-    <instancedMesh
-      ref={meshRef}
-      args={[undefined, undefined, count]}
-      position={[0, 6, 0]}
-      frustumCulled={false}
-    >
-      <planeGeometry args={[1, 1]} />
-      <meshBasicMaterial
-        map={texture}
-        transparent={true}
-        opacity={0.25} // Subtly transparent
-        depthWrite={false}
-        color="#777777" // Gray ash smoke
-      />
-    </instancedMesh>
-  );
-}
-
-// ── Volcano Active Effects (Lighting, Sparks, Smoke) ─────────────────────
-function VolcanoEffects() {
-  return (
-    <group position={[0, 0, 0]}>
-      {/* Intense magma core lighting */}
+    <>
       <pointLight
         color="#ff3300"
         intensity={300}
@@ -332,47 +353,224 @@ function VolcanoEffects() {
         color="#ff1100"
         intensity={400}
         distance={50}
-        decay={2}
+        decay={2.0}
         position={[0, 12, 0]}
       />
-
-      {/* Erupting Embers / Scatter */}
-      <VolcanoEruptionParticles />
-
-      {/* Thick black smoke */}
-      <VolcanoSmoke />
-
-      {/* Spreading gray ash smoke */}
-      <VolcanoAshSmoke />
-    </group>
+    </>
   );
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// VolcanoTimeline — the single source of truth for the eruption sequence.
+//
+// Phase progression (read T.* for exact times):
+//   t=0.5s  → camera shake fires + video starts (simultaneously)
+//   t=3.3s  → smoke fades in from below + embers activate
+//   t=4.0s  → lava texture begins flowing
+//
+// Design decisions:
+//  • `elapsed` and `fired` are refs → zero re-renders during animation
+//  • Phase state updates happen exactly ONCE per phase (guarded by `fired`)
+//  • `smokeProgressRef` is passed directly to SmokeParticles (no state needed)
+//  • Reset on `active=false` returns everything to ground state cleanly
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface TimelinePhases {
+  video: boolean;
+  particles: boolean;
+}
+
+const INITIAL_PHASES: TimelinePhases = {
+  video: false,
+  particles: false,
+};
+
+function VolcanoTimeline({
+  scene,
+  active,
+  onCameraShakeStart,
+}: {
+  scene: THREE.Group;
+  active: boolean;
+  onCameraShakeStart?: () => void;
+}) {
+  const activeRef = useRef(active);
+  useEffect(() => {
+    activeRef.current = active;
+  }, [active]);
+
+  const elapsed = useRef(0);
+  const fired = useRef({
+    shake: false,
+    video: false,
+    videoEnd: false,
+    particles: false,
+  });
+  const smokeProgressRef = useRef(0); // 0→1, passed directly to SmokeParticles
+
+  // React state only for mounting/unmounting sub-components (fires once per phase)
+  const [phases, setPhases] = useState<TimelinePhases>(INITIAL_PHASES);
+
+  // ── Phase Setup & Reset ───────────────────────────────────────────────────
+  useEffect(() => {
+    // Run this whenever active state changes or scene mounts
+    scene.traverse((child) => {
+      if ((child as THREE.Mesh).isMesh) {
+        const raw = (child as THREE.Mesh).material;
+        const candidates = Array.isArray(raw) ? raw : [raw];
+        candidates.forEach((m) => {
+          const mat = m as THREE.MeshStandardMaterial;
+          if (mat.emissive) mat.emissive.set(0xffffff); // Ensure emissive base color is white
+          if (!active) {
+            mat.emissiveIntensity = 0; // Reset emission if inactive
+          }
+          mat.needsUpdate = true;
+        });
+      }
+    });
+
+    if (!active) {
+      elapsed.current = 0;
+      smokeProgressRef.current = 0;
+      fired.current = {
+        shake: false,
+        video: false,
+        videoEnd: false,
+        particles: false,
+      };
+      setPhases(INITIAL_PHASES);
+    }
+  }, [active, scene]);
+
+  useFrame((_, delta) => {
+    // ── Enforce Emissive Base Color (fixes KTX2 async texture replacement bug) ──
+    scene.traverse((child) => {
+      if ((child as THREE.Mesh).isMesh) {
+        const raw = (child as THREE.Mesh).material;
+        const candidates = Array.isArray(raw) ? raw : [raw];
+        candidates.forEach((m) => {
+          const mat = m as THREE.MeshStandardMaterial;
+          if (mat.emissive) mat.emissive.set(0xffffff);
+        });
+      }
+    });
+
+    if (!activeRef.current) return;
+
+    elapsed.current += Math.min(delta, 0.1);
+    const t = elapsed.current;
+    const f = fired.current;
+
+    // ── Phase: camera shake + video ────────────────────────────────────────
+    if (!f.shake && t >= T.cameraShake) {
+      f.shake = true;
+      onCameraShakeStart?.();
+    }
+    if (!f.video && t >= T.videoStart) {
+      f.video = true;
+      setPhases((p) => ({ ...p, video: true }));
+    }
+    // UNMOUNT video exactly when it ends so the last frame doesn't block the view!
+    if (!f.videoEnd && t >= T.videoStart + TIMELINE.videoDuration) {
+      f.videoEnd = true;
+      setPhases((p) => ({ ...p, video: false }));
+    }
+
+    // ── Phase: smoke + particles ───────────────────────────────────────────
+    if (t >= T.smokeStart) {
+      // Smooth rise over 2.0 s from crater
+      smokeProgressRef.current = Math.min((t - T.smokeStart) / 2.0, 1);
+    }
+    if (!f.particles && t >= T.particleStart) {
+      f.particles = true;
+      setPhases((p) => ({ ...p, particles: true }));
+    }
+
+    // Animate Volcano material emission (glow starts at explosion)
+    if (t >= T.videoStart) {
+      const emissionProgress = Math.min((t - T.videoStart) / 1.5, 1.0);
+      const ease =
+        emissionProgress * emissionProgress * (3 - 2 * emissionProgress);
+
+      scene.traverse((child) => {
+        if ((child as THREE.Mesh).isMesh) {
+          const raw = (child as THREE.Mesh).material;
+          const candidates = Array.isArray(raw) ? raw : [raw];
+          candidates.forEach((m) => {
+            const mat = m as THREE.MeshStandardMaterial;
+            mat.emissiveIntensity = ease * 10.0;
+          });
+        }
+      });
+    }
+  });
+
+  return (
+    <>
+      {/* <VolcanoLighting /> */}
+
+      {/* Video — plays once, unmounts when not in sequence */}
+      <VideoLayer visible={phases.video} />
+
+      {/* Smoke — fades in from bottom via progressRef */}
+      <SmokeParticles config={BLACK_SMOKE} progressRef={smokeProgressRef} />
+      <SmokeParticles config={ASH_SMOKE} progressRef={smokeProgressRef} />
+
+      {/* Embers — burst cycle starts when particles phase begins */}
+      <ParticleLayer active={phases.particles} />
+    </>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Volcano — public API
+//
+// Props:
+//   position / rotation / scale  →  placement in the world
+//   startSequence                →  flip to `true` to begin the eruption timeline
+//   onCameraShakeStart           →  callback fired at T.cameraShake (0.5 s)
+//                                   wire this up to OceanCamera's shake system
+// ─────────────────────────────────────────────────────────────────────────────
 
 export default function Volcano({
   position = [0, 0, 12000] as [number, number, number],
   rotation = [0, 0, 0] as [number, number, number],
   scale = 18,
+  valleyPosition = [-8, 0, 6] as [number, number, number],
+  valleyRotation = [0, 0, 0] as [number, number, number],
+  valleyScale = 0.08,
+  startSequence = false,
+  onCameraShakeStart,
 }: {
   position?: [number, number, number];
   rotation?: [number, number, number];
   scale?: number;
+  valleyPosition?: [number, number, number];
+  valleyRotation?: [number, number, number];
+  valleyScale?: number;
+  startSequence?: boolean;
+  onCameraShakeStart?: () => void;
 }) {
-  const gl = useThree((state) => state.gl);
+  const gl = useThree((s) => s.gl);
   const [scene, setScene] = useState<THREE.Group | null>(null);
+  const [valleyScene, setValleyScene] = useState<THREE.Group | null>(null);
 
   useEffect(() => {
-    let isMounted = true;
-
-    loadVolcanoScene(gl)
-      .then((loadedScene) => {
-        if (isMounted) setScene(loadedScene);
+    let live = true;
+    loadVolcanoScene(gl, VOLCANO_URL)
+      .then((s) => {
+        if (live) setScene(s);
       })
-      .catch((err) => {
-        console.error("❌ Error loading volcano model:", err);
-      });
+      .catch((err) => console.error("❌ Volcano load error:", err));
+
+    loadVolcanoScene(gl, "/assets/ocean/mountainous_valley-opt.glb")
+      .then((s) => {
+        if (live) setValleyScene(s);
+      })
+      .catch((err) => console.error("❌ Valley load error:", err));
 
     return () => {
-      isMounted = false;
+      live = false;
     };
   }, [gl]);
 
@@ -380,9 +578,20 @@ export default function Volcano({
 
   return (
     <group position={position} rotation={rotation} scale={scale}>
-      <primitive object={scene} />
-      <FlowingLavaShader scene={scene} />
-      <VolcanoEffects />
+      <primitive object={scene} scale={25} rotation={[0, Math.PI, 0]} />
+      {valleyScene && (
+        <primitive
+          object={valleyScene}
+          position={valleyPosition}
+          rotation={valleyRotation}
+          scale={valleyScale}
+        />
+      )}
+      <VolcanoTimeline
+        scene={scene}
+        active={startSequence}
+        onCameraShakeStart={onCameraShakeStart}
+      />
     </group>
   );
 }

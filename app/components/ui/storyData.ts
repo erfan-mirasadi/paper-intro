@@ -88,31 +88,31 @@ export const storyScript: StoryNode[] = [
   },
 
   // ── SCENE 3: OCEAN (Volcano / Moon / Revelation) ──
-  {
-    id: "ocean_1",
-    scene: "ocean",
-    startTime: 0, // Starts during the dark transition
-    duration: 3,
-    type: "title",
-    text: "The Revelation",
-    hasBackdrop: true,
-  },
-  {
-    id: "ocean_2",
-    scene: "ocean",
-    startTime: 6.5,
-    duration: 6,
-    type: "text",
-    text: "Through the fires of existence,\na singular light emerged in the heavens.\nRead! In the name of your Lord who created...",
-    hasBackdrop: false,
-  },
-  {
-    id: "ocean_4",
-    scene: "ocean",
-    startTime: 13.5,
-    duration: 8,
-    type: "title",
-    text: "Iqra",
-    hasBackdrop: true,
-  },
+  // {
+  //   id: "ocean_1",
+  //   scene: "ocean",
+  //   startTime: 0, // Starts during the dark transition
+  //   duration: 3,
+  //   type: "title",
+  //   text: "The Revelation",
+  //   hasBackdrop: true,
+  // },
+  // {
+  //   id: "ocean_2",
+  //   scene: "ocean",
+  //   startTime: 6.5,
+  //   duration: 6,
+  //   type: "text",
+  //   text: "Through the fires of existence,\na singular light emerged in the heavens.\nRead! In the name of your Lord who created...",
+  //   hasBackdrop: false,
+  // },
+  // {
+  //   id: "ocean_4",
+  //   scene: "ocean",
+  //   startTime: 13.5,
+  //   duration: 8,
+  //   type: "title",
+  //   text: "Iqra",
+  //   hasBackdrop: true,
+  // },
 ];
