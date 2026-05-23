@@ -50,7 +50,7 @@ export default function PalaceScene({ isActive, isVisible }: PalaceSceneProps) {
 
         <SweepRevealWrapper
           maxRadius={220}
-          speed={75}
+          speed={65}
           mode="overlay"
           onRevealStart={handleSweepRevealStart}
           isActive={isActive}
@@ -108,7 +108,7 @@ function PalaceCamera({ isActive }: { isActive: boolean }) {
   const start = useMemo(() => new THREE.Vector3(0, 3, 50), []);
   const end = useMemo(() => new THREE.Vector3(0, 3, -100), []);
   const lookAtTarget = useMemo(() => new THREE.Vector3(0, 50, -200), []);
-  const travelDuration = 12;
+  const travelDuration = 15;
 
   // Configure global camera for this scene once
   useEffect(() => {

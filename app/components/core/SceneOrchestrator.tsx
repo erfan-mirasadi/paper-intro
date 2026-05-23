@@ -59,6 +59,7 @@ import {
   signalSceneReady,
   signalIntroComplete,
 } from "./useSceneStore";
+import StoryOverlay from "../ui/StoryOverlay";
 
 // ── Constants ─────────────────────────────────────────────────────────────
 
@@ -70,7 +71,10 @@ import {
 const POST_WARMUP_BUFFER_MS = 200;
 
 /** Duration of the HTML overlay CSS fade (ms). */
-const OVERLAY_FADE_MS = 1000;
+const OVERLAY_FADE_MS = 3000;
+
+/** How long to hold the screen fully black before starting the new scene (ms). */
+const BLACK_HOLD_MS = 4000;
 
 // ── Phase ─────────────────────────────────────────────────────────────────
 type Phase =
@@ -237,6 +241,10 @@ export default function SceneOrchestrator() {
   // Which scene is logically active (controls camera, sequences, audio)
   const [activeScene, setActiveScene] = useState<SceneId>("ocean");
 
+  // Which scene's text should the StoryOverlay be playing?
+  // We can advance this BEFORE activeScene to show text on the black screen.
+  const [storyScene, setStoryScene] = useState<SceneId>("ocean");
+
   // During warmup ALL scenes are visible so Three.js compiles their shaders
   const [warmupVisible, setWarmupVisible] = useState(true);
 
@@ -321,10 +329,17 @@ export default function SceneOrchestrator() {
   // ── WebGL Fade transition end ───────────────────────────────────
   const handleFadeInComplete = useCallback(() => {
     if (phaseRef.current === "black_fade_in") {
-      // Overlay is now solid black/white — swap scene instantly then fade out
-      setActiveScene(pendingSceneRef.current);
-      phaseRef.current = "black_fade_out";
-      setOverlayOpaque(false); // start fade-out immediately
+      phaseRef.current = "black_hold";
+
+      // Advance the story text immediately so it plays on the black screen
+      setStoryScene(pendingSceneRef.current);
+
+      // Wait for BLACK_HOLD_MS before starting the actual 3D scene
+      setTimeout(() => {
+        setActiveScene(pendingSceneRef.current);
+        phaseRef.current = "black_fade_out";
+        setOverlayOpaque(false); // start fade-out immediately
+      }, BLACK_HOLD_MS);
     }
   }, []);
 
@@ -415,6 +430,7 @@ export default function SceneOrchestrator() {
           pointerEvents: "none",
         }}
       >
+        <StoryOverlay activeScene={storyScene} />
         <div style={{ pointerEvents: "auto" }}>
           <MusicPlayer />
         </div>
