@@ -106,9 +106,9 @@ function PalaceCamera({ isActive }: { isActive: boolean }) {
   const exitTriggeredRef = useRef(false);
 
   const start = useMemo(() => new THREE.Vector3(0, 3, 50), []);
-  const end = useMemo(() => new THREE.Vector3(0, 3, -100), []);
+  const end = useMemo(() => new THREE.Vector3(0, 3, -120), []);
   const lookAtTarget = useMemo(() => new THREE.Vector3(0, 50, -200), []);
-  const travelDuration = 15;
+  const travelDuration = 16;
 
   // Configure global camera for this scene once
   useEffect(() => {

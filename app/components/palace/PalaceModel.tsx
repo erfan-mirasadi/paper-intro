@@ -10,7 +10,7 @@ import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.j
 const PALACE_URL = "/assets/palace/palace-v02-opt.glb";
 const INSTANCE_COUNT = 2;
 // This controls how much of the second instance is kept (e.g., 0.25 means keep 25%)
-const KEEP_FRACTION = 0.22;
+const KEEP_FRACTION = 0.37;
 
 interface PalaceModelProps {
   spacing?: number;

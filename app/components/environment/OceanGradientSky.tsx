@@ -80,7 +80,7 @@ void main() {
     float glowIntensity = volcanoLight * localBottomFade * detailMask * uExplosion;
     
     // Additive illumination! We add the light on top of the dark silhouette
-    vec3 finalColor = flatCloud + (uGlowColor * glowIntensity * 1.8);
+    vec3 finalColor = flatCloud + (uGlowColor * glowIntensity * 3.5);
     
     // 3. Ultra-aggressive edge mask that eats away straight edges from the PNG bounds
     // We want to fade the outer 25% of the texture to ensure it seamlessly blends
@@ -229,14 +229,13 @@ export default function OceanGradientSky({
       timeSinceExplosion.current = 0;
     }
 
-    // Sky and Clouds change color TOGETHER, 2 seconds AFTER volcano starts
-    const target = timeSinceExplosion.current > 2.0 ? 1.0 : 0.0;
-
-    transitionRef.current = THREE.MathUtils.lerp(
-      transitionRef.current,
-      target,
-      delta * 0.8,
-    );
+    // Wait 0.5s after volcano starts, then reach full brightness in 0.5s
+    if (startVolcano) {
+      const effectiveTime = Math.max(0, timeSinceExplosion.current - 0.5);
+      transitionRef.current = Math.min(effectiveTime * 2.0, 1.0);
+    } else {
+      transitionRef.current = 0.0;
+    }
 
     // Sky does NOT change anymore, only clouds glow
     if (cloudMaterialRef.current) {

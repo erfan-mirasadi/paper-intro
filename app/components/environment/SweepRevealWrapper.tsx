@@ -297,28 +297,14 @@ export default function SweepRevealWrapper({
     if (!isActive) {
       isSweeping.current = false;
       currentRadius.current = 0;
-      traversedRef.current = false; // Allow re-traversal when scene re-activates
+      
+      // Reset uniforms so it's ready for the next time it's triggered
       shadersRef.current.forEach((shader) => {
         if (shader.uniforms?.uRadius) {
           shader.uniforms.uRadius.value = 0;
         }
       });
-      shadersRef.current = [];
-
-      // Clear __sweepPatched on all in-place-patched materials so they can
-      // be re-patched correctly when the scene activates again
-      if (groupRef.current) {
-        groupRef.current.traverse((child) => {
-          const mesh = child as THREE.Mesh;
-          if (!mesh.isMesh || !mesh.material) return;
-          const mats = Array.isArray(mesh.material)
-            ? (mesh.material as THREE.Material[])
-            : [mesh.material as THREE.Material];
-          mats.forEach((m) => {
-            (m as any).__sweepPatched = false;
-          });
-        });
-      }
+      
       return;
     }
 
