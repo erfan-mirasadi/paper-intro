@@ -16,9 +16,9 @@ const BEAM_BASE_POSITION = { x: -3, y: -2, z: -5 };
 export const BEAM_COLOR = 0xedf7f7; // Rich golden yellow
 
 const SCENE_COLORS: Record<SceneId, number> = {
-  cave: 0xa6e6fa, // icy blue
+  cave: 0xffdd44, // yellow (was ocean)
   palace: 0xedf7f7, // current color
-  ocean: 0xffdd44, // yellow
+  ocean: 0xa6e6fa, // icy blue (was cave)
 };
 
 export default function LightBeam({

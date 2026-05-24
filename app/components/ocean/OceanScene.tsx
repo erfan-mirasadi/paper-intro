@@ -29,11 +29,13 @@ import StaticClouds from "../environment/StaticClouds";
 
 // import ParallaxCamera from "../ParallaxCamera";
 import Skybox from "../environment/Skybox";
+import OceanGradientSky from "../environment/OceanGradientSky";
 import StaticStarsParticles from "../environment/StarsParticles";
 import AnimatedFog from "../environment/AnimatedFog";
 import SweepRevealWrapper from "../environment/SweepRevealWrapper";
 import { mainSheet } from "../TheatreSetup";
 import { requestTransition, onIntroComplete } from "../core/useSceneStore";
+import Mountain2 from "./Mountain2";
 // import { Environment } from "@react-three/drei";
 
 extend({ Water });
@@ -48,6 +50,11 @@ const EXIT_TRIGGER_POSITION = 14.0;
 const PLAYBACK_RATE = 1 / 1.8;
 const START_OFFSET_SECONDS = 0.5;
 
+// Optimized water plane bounds centered along camera track
+const WATER_PLANE_WIDTH = 8000;
+const WATER_PLANE_LENGTH = 20000;
+const WATER_PLANE_Z = 1000;
+
 interface OceanSceneProps {
   isActive: boolean;
   isVisible: boolean;
@@ -55,47 +62,67 @@ interface OceanSceneProps {
 
 export default function OceanScene({ isActive, isVisible }: OceanSceneProps) {
   const [startVolcano, setStartVolcano] = useState(false);
+  const [startStars, setStartStars] = useState(false);
+
+  useEffect(() => {
+    if (!isActive) {
+      setStartVolcano(false);
+      setStartStars(false);
+    }
+  }, [isActive]);
 
   // Shared shake state: Volcano writes intensity, OceanCamera reads & decays it.
   // A plain ref avoids any React re-renders on every shake frame.
   const shakeRef = useRef({ intensity: 0 });
 
   const triggerCameraShake = useCallback(() => {
-    shakeRef.current.intensity = 55; // strong initial amplitude, decays in OceanCamera
+    shakeRef.current.intensity = 230; // strong initial amplitude, decays in OceanCamera
   }, []);
 
   const handleSweepRevealStart = useCallback(() => {
     // Delay the eruption slightly to let the sweep wave travel across the ocean
-    setTimeout(() => setStartVolcano(true), 1000);
+    setTimeout(() => {
+      setStartVolcano(true);
+      // Volcano explosion video starts 0.5s after startVolcano.
+      // 1.0s after explosion = 1.5s total delay for stars.
+      setTimeout(() => setStartStars(true), 1800);
+    }, 1000);
   }, []);
 
   return (
     <>
       {/* Background + global state: only when active */}
       {isActive && <color attach="background" args={["#030507"]} />}
+      {isActive && <AnimatedFog color="#172030" maxDensity={0.0004} />}
 
       <group visible={isVisible}>
         {/* OceanCamera: drives the global camera + applies camera shake */}
         <OceanCamera isActive={isActive} shakeRef={shakeRef} />
 
         {/* Skybox always mounted for warmup/preloading. isActive controls global state application, isVisible controls rendering */}
-        <Skybox isActive={isActive} isVisible={isVisible} />
+        <OceanGradientSky
+          isActive={isActive}
+          isVisible={isVisible}
+          startVolcano={startVolcano}
+        />
 
         {/* Water is outside SweepRevealWrapper because it has its own custom shader */}
         <OceanWater isActive={isActive} />
 
         {/* Static objects (islands, lighthouse, mountains) wrapped in SweepReveal */}
         <SweepRevealWrapper
-          maxRadius={35000}
+          maxRadius={15000}
           speed={3000}
-          trailLength={500}
+          trailLength={800}
           mode="overlay"
+          beamColor={0xa6e6fa}
           onRevealStart={handleSweepRevealStart}
           isActive={isActive}
-          autoTriggerDelay={500}
+          autoTriggerDelay={2500}
         >
           <OceanStaticObjects
             startVolcano={startVolcano}
+            startStars={startStars}
             onVolcanoCameraShake={triggerCameraShake}
           />
         </SweepRevealWrapper>
@@ -227,8 +254,8 @@ function OceanWater({ isActive }: { isActive: boolean }) {
   );
 
   const waterGeometry = useMemo(
-    () => new THREE.PlaneGeometry(SCENE_SIZE, SCENE_SIZE),
-    [SCENE_SIZE],
+    () => new THREE.PlaneGeometry(WATER_PLANE_WIDTH, WATER_PLANE_LENGTH),
+    [],
   );
 
   useFrame((state, delta) => {
@@ -249,10 +276,10 @@ function OceanWater({ isActive }: { isActive: boolean }) {
         ref={waterRef}
         args={[waterGeometry, config]}
         rotation-x={-Math.PI / 2}
-        position={[0, 0, 0]}
+        position={[0, 0, WATER_PLANE_Z]}
       />
-      <mesh position={[0, -510, 0]}>
-        <boxGeometry args={[SCENE_SIZE, 1000, SCENE_SIZE]} />
+      <mesh position={[0, -510, WATER_PLANE_Z]}>
+        <boxGeometry args={[WATER_PLANE_WIDTH, 1000, WATER_PLANE_LENGTH]} />
         <meshBasicMaterial
           color={0x001220}
           transparent
@@ -270,9 +297,11 @@ function OceanWater({ isActive }: { isActive: boolean }) {
 
 function OceanStaticObjects({
   startVolcano,
+  startStars,
   onVolcanoCameraShake,
 }: {
   startVolcano?: boolean;
+  startStars?: boolean;
   onVolcanoCameraShake?: () => void;
 }) {
   const mountainBrightness = 0.1;
@@ -284,16 +313,9 @@ function OceanStaticObjects({
 
   return (
     <>
-      <StaticStarsParticles />
-
-      {/*
-       * Water-surface sweep overlay — a flat plane at the exact water level.
-       * Water's ShaderMaterial cannot receive the sweep shader injection directly,
-       * so this invisible plane acts as the "canvas" for the glow effect.
-       * opacity=0.08 keeps it invisible in normal view; sweep glow lights it up.
-       */}
-      <mesh position={[0, -1.8, 0]} rotation-x={-Math.PI / 2}>
-        <planeGeometry args={[WATER_SIZE, WATER_SIZE]} />
+      <StaticStarsParticles active={startStars} />
+      <mesh position={[0, -1.8, WATER_PLANE_Z]} rotation-x={-Math.PI / 2}>
+        <planeGeometry args={[WATER_PLANE_WIDTH, WATER_PLANE_LENGTH]} />
         <meshBasicMaterial
           color={0x001220}
           transparent
@@ -302,8 +324,8 @@ function OceanStaticObjects({
         />
       </mesh>
 
-      {/* <Island />
-      <Island2 /> */}
+      {/* <Island /> */}
+      <Island2 />
       {/* <Lighthouse /> */}
       {/* <StaticClouds opacity={0.1} /> */}
       {/* <Mountain2
@@ -321,13 +343,13 @@ function OceanStaticObjects({
 
       {/* Volcanic feature — sequence driven by startVolcano; shake wired to OceanCamera */}
       <Volcano
-        position={[0, -30, 0]}
-        scale={60}
+        position={[0, -80, 0]}
+        scale={[60, 100, 60]}
         startSequence={startVolcano}
         onCameraShakeStart={onVolcanoCameraShake}
       />
-      {/* 
-      <group position={bgMountainPos} scale={bgMountainStretch}>
+
+      {/* <group position={bgMountainPos} scale={bgMountainStretch}>
         <Mountain2
           position={[0, 0, 0]}
           rotation={[0, 4, 0]}

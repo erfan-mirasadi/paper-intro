@@ -14,7 +14,7 @@ interface CustomShader {
   fragmentShader: string;
 }
 
-export default function StarsParticles() {
+export default function StarsParticles({ active = true }: { active?: boolean }) {
   const count = 200;
 
   // Spread - keep center dense
@@ -79,10 +79,21 @@ export default function StarsParticles() {
     return [pos, col, rand];
   }, []);
 
+  const opacityRef = useRef(0);
+
   // Update the time uniform on every frame for the pulsing effect
-  useFrame((state) => {
+  useFrame((state, delta) => {
     const material = materialRef.current;
     if (material) {
+      // Smooth fade in over 2 seconds when active
+      if (active && opacityRef.current < 1) {
+        opacityRef.current = Math.min(1, opacityRef.current + delta * 0.5);
+      } else if (!active && opacityRef.current > 0) {
+        opacityRef.current = 0; // instantly hide on reset
+      }
+
+      material.opacity = opacityRef.current;
+
       const shader = (material.userData as { shader?: CustomShader }).shader;
       if (shader) {
         shader.uniforms.uTime.value = state.clock.elapsedTime;
@@ -104,7 +115,7 @@ export default function StarsParticles() {
         sizeAttenuation={true}
         vertexColors
         transparent
-        opacity={1.0} // Kept full since shader handles the fading
+        opacity={0} // starts hidden, fades in via useFrame
         depthWrite={false}
         depthTest={true} // Explicitly tell the material to respect the depth of objects in front of it
         blending={THREE.AdditiveBlending}

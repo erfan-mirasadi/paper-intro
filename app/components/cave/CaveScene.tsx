@@ -128,6 +128,7 @@ export default function CaveScene({ isActive, isVisible }: CaveSceneProps) {
           maxRadius={900}
           speed={100}
           mode="overlay"
+          beamColor={0xffdd44}
           autoTriggerDelay={1900}
           onRevealStart={handleSweepRevealStart}
           isActive={isActive}

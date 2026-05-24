@@ -17,10 +17,10 @@ export default function Effect() {
         luminanceSmoothing={0.1}
         mipmapBlur
       />
-      <Noise opacity={0.05} premultiply blendFunction={BlendFunction.ADD} />
+      <Noise opacity={1} premultiply blendFunction={BlendFunction.ADD} />
       <Vignette
         eskil={false}
-        offset={0.1}
+        offset={0.2}
         darkness={1.0}
         blendFunction={BlendFunction.NORMAL}
       />

@@ -67,18 +67,26 @@ export function preloadVolcano(gl: THREE.WebGLRenderer) {
 // Mounted/visible only when `visible` is true (after T.videoStart).
 // ─────────────────────────────────────────────────────────────────────────────
 
-function VideoLayer({ visible }: { visible: boolean }) {
+function VideoLayer({
+  play,
+  opacityRef,
+}: {
+  play: boolean;
+  opacityRef: React.MutableRefObject<number>;
+}) {
   const [texture, setTexture] = useState<THREE.VideoTexture | null>(null);
   const [aspect, setAspect] = useState(1);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const materialRef = useRef<THREE.SpriteMaterial>(null!);
 
   useEffect(() => {
     const video = document.createElement("video");
-    video.src = "/assets/ocean/VFX-volcano.mp4";
+    video.src = "/assets/ocean/VFX-volcano.mov";
     video.crossOrigin = "anonymous";
     video.loop = false; // ← plays exactly ONCE
     video.muted = true;
     video.playsInline = true;
+    video.preload = "auto"; // Preload video to avoid lag spike on play
     videoRef.current = video;
 
     video.addEventListener("loadedmetadata", () => {
@@ -88,6 +96,9 @@ function VideoLayer({ visible }: { visible: boolean }) {
 
     const tex = new THREE.VideoTexture(video);
     tex.colorSpace = THREE.SRGBColorSpace;
+    tex.minFilter = THREE.LinearFilter;
+    tex.magFilter = THREE.LinearFilter;
+    tex.generateMipmaps = false;
     setTexture(tex);
 
     return () => {
@@ -98,30 +109,35 @@ function VideoLayer({ visible }: { visible: boolean }) {
     };
   }, []);
 
-  // Start playback the moment this layer becomes visible
+  // Start playback when 'play' becomes true
   useEffect(() => {
-    if (visible && videoRef.current) {
+    if (play && videoRef.current) {
+      videoRef.current.currentTime = 0;
       videoRef.current
         .play()
         .catch((e) => console.warn("Volcano video play failed:", e));
     }
-  }, [visible]);
+  }, [play]);
+
+  useFrame(() => {
+    if (materialRef.current) {
+      materialRef.current.opacity = opacityRef.current;
+    }
+  });
 
   if (!texture) return null;
 
   const height = 20;
   return (
-    <sprite
-      visible={visible}
-      position={[0, 12, 0]}
-      scale={[height * aspect, height, 1]}
-    >
+    <sprite position={[0, 12, 0]} scale={[height * aspect, height, 1]}>
       <spriteMaterial
+        ref={materialRef}
         map={texture}
         blending={THREE.AdditiveBlending}
         transparent
         depthWrite={false}
         toneMapped={false}
+        fog={false}
         color={new THREE.Color(1.2, 1.2, 1.2)} // Slight boost for vividness, without breaking black levels
       />
     </sprite>
@@ -139,6 +155,7 @@ interface SmokeConfig {
   color: string;
   opacity: number; // max opacity at progress=1
   spread: number; // XZ spawn radius
+  scaleMultiplier?: number; // Optional scale override
 }
 
 function SmokeParticles({
@@ -159,12 +176,12 @@ function SmokeParticles({
         y: Math.random() * 10 - 5,
         z: (Math.random() - 0.5) * config.spread,
         speed: Math.random() * 0.5 + 0.3,
-        scale: Math.random() * 8 + 4,
+        scale: (Math.random() * 8 + 4) * (config.scaleMultiplier || 1.0),
         rot: Math.random() * Math.PI * 2,
         rotSpeed: (Math.random() - 0.5) * 0.015,
       })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [config.count, config.spread],
+    [config.count, config.spread, config.scaleMultiplier],
   );
 
   useFrame((_, delta) => {
@@ -186,7 +203,7 @@ function SmokeParticles({
         pt.y = Math.random() * 4 - 8;
         pt.x = (Math.random() - 0.5) * config.spread;
         pt.z = (Math.random() - 0.5) * config.spread;
-        pt.scale = Math.random() * 6 + 4;
+        pt.scale = (Math.random() * 6 + 4) * (config.scaleMultiplier || 1.0);
       }
 
       dummy.position.set(pt.x, pt.y, pt.z);
@@ -236,8 +253,9 @@ const BLACK_SMOKE: SmokeConfig = {
 const ASH_SMOKE: SmokeConfig = {
   count: 20,
   color: "#777777",
-  opacity: 0.25,
-  spread: 8.0,
+  opacity: 0.12,
+  spread: 3.5,
+  scaleMultiplier: 0.25,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -334,45 +352,8 @@ function ParticleLayer({ active }: { active: boolean }) {
     </instancedMesh>
   );
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// VolcanoLighting — warm magma glow lights; always on once the model is shown.
-// ─────────────────────────────────────────────────────────────────────────────
-
-function VolcanoLighting() {
-  return (
-    <>
-      <pointLight
-        color="#ff3300"
-        intensity={300}
-        distance={150}
-        decay={1.5}
-        position={[0, 10, 0]}
-      />
-      <pointLight
-        color="#ff1100"
-        intensity={400}
-        distance={50}
-        decay={2.0}
-        position={[0, 12, 0]}
-      />
-    </>
-  );
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // VolcanoTimeline — the single source of truth for the eruption sequence.
-//
-// Phase progression (read T.* for exact times):
-//   t=0.5s  → camera shake fires + video starts (simultaneously)
-//   t=3.3s  → smoke fades in from below + embers activate
-//   t=4.0s  → lava texture begins flowing
-//
-// Design decisions:
-//  • `elapsed` and `fired` are refs → zero re-renders during animation
-//  • Phase state updates happen exactly ONCE per phase (guarded by `fired`)
-//  • `smokeProgressRef` is passed directly to SmokeParticles (no state needed)
-//  • Reset on `active=false` returns everything to ground state cleanly
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface TimelinePhases {
@@ -384,6 +365,66 @@ const INITIAL_PHASES: TimelinePhases = {
   video: false,
   particles: false,
 };
+
+function setupLavaMaterial(
+  mesh: THREE.Mesh,
+  mat: THREE.MeshStandardMaterial,
+  active: boolean,
+) {
+  if (mat.emissive) mat.emissive.setHex(0xffffff);
+
+  if (!mat.userData.customCompiled) {
+    mat.userData.customCompiled = true;
+    mat.userData.uPourProgress = { value: 0.0 };
+
+    if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
+    const box = mesh.geometry.boundingBox;
+    const minY = box ? box.min.y : 0;
+    const maxY = box ? box.max.y : 10;
+    const height = maxY - minY;
+    const buffer = height * 0.05;
+
+    mat.userData.uMinY = { value: minY - buffer };
+    mat.userData.uMaxY = { value: maxY + buffer };
+
+    mat.onBeforeCompile = (shader) => {
+      shader.uniforms.uPourProgress = mat.userData.uPourProgress;
+      shader.uniforms.uMinY = mat.userData.uMinY;
+      shader.uniforms.uMaxY = mat.userData.uMaxY;
+
+      shader.vertexShader = shader.vertexShader.replace(
+        "#include <common>",
+        `#include <common>
+         varying vec3 vLocalPos;`,
+      );
+      shader.vertexShader = shader.vertexShader.replace(
+        "#include <begin_vertex>",
+        `#include <begin_vertex>
+         vLocalPos = position.xyz;`,
+      );
+
+      shader.fragmentShader = shader.fragmentShader.replace(
+        "#include <common>",
+        `#include <common>
+         varying vec3 vLocalPos;
+         uniform float uPourProgress;
+         uniform float uMinY;
+         uniform float uMaxY;`,
+      );
+
+      shader.fragmentShader = shader.fragmentShader.replace(
+        "#include <emissivemap_fragment>",
+        `#include <emissivemap_fragment>
+         float currentY = mix(uMaxY, uMinY, uPourProgress);
+         float edgeWidth = max(0.1, (uMaxY - uMinY) * 0.1);
+         float pourMask = smoothstep(currentY - edgeWidth, currentY + edgeWidth, vLocalPos.y);
+         totalEmissiveRadiance *= pourMask;
+        `,
+      );
+    };
+    mat.needsUpdate = true;
+  }
+}
 
 function VolcanoTimeline({
   scene,
@@ -407,6 +448,7 @@ function VolcanoTimeline({
     particles: false,
   });
   const smokeProgressRef = useRef(0); // 0→1, passed directly to SmokeParticles
+  const videoOpacityRef = useRef(0);
 
   // React state only for mounting/unmounting sub-components (fires once per phase)
   const [phases, setPhases] = useState<TimelinePhases>(INITIAL_PHASES);
@@ -416,15 +458,17 @@ function VolcanoTimeline({
     // Run this whenever active state changes or scene mounts
     scene.traverse((child) => {
       if ((child as THREE.Mesh).isMesh) {
-        const raw = (child as THREE.Mesh).material;
+        const mesh = child as THREE.Mesh;
+        const raw = mesh.material;
         const candidates = Array.isArray(raw) ? raw : [raw];
         candidates.forEach((m) => {
           const mat = m as THREE.MeshStandardMaterial;
-          if (mat.emissive) mat.emissive.set(0xffffff); // Ensure emissive base color is white
+          setupLavaMaterial(mesh, mat, active);
           if (!active) {
             mat.emissiveIntensity = 0; // Reset emission if inactive
+            if (mat.userData.uPourProgress)
+              mat.userData.uPourProgress.value = 0;
           }
-          mat.needsUpdate = true;
         });
       }
     });
@@ -432,6 +476,7 @@ function VolcanoTimeline({
     if (!active) {
       elapsed.current = 0;
       smokeProgressRef.current = 0;
+      videoOpacityRef.current = 0;
       fired.current = {
         shake: false,
         video: false,
@@ -446,11 +491,12 @@ function VolcanoTimeline({
     // ── Enforce Emissive Base Color (fixes KTX2 async texture replacement bug) ──
     scene.traverse((child) => {
       if ((child as THREE.Mesh).isMesh) {
-        const raw = (child as THREE.Mesh).material;
+        const mesh = child as THREE.Mesh;
+        const raw = mesh.material;
         const candidates = Array.isArray(raw) ? raw : [raw];
         candidates.forEach((m) => {
           const mat = m as THREE.MeshStandardMaterial;
-          if (mat.emissive) mat.emissive.set(0xffffff);
+          setupLavaMaterial(mesh, mat, activeRef.current);
         });
       }
     });
@@ -470,10 +516,27 @@ function VolcanoTimeline({
       f.video = true;
       setPhases((p) => ({ ...p, video: true }));
     }
-    // UNMOUNT video exactly when it ends so the last frame doesn't block the view!
     if (!f.videoEnd && t >= T.videoStart + TIMELINE.videoDuration) {
       f.videoEnd = true;
       setPhases((p) => ({ ...p, video: false }));
+    }
+
+    // ── Video Opacity Fade Out ─────────────────────────────────────────────
+    if (f.video && !f.videoEnd) {
+      const timeInVideo = t - T.videoStart;
+      const FADE_OUT_DUR = 0.5; // seconds to fade out at the end
+
+      if (timeInVideo > TIMELINE.videoDuration - FADE_OUT_DUR) {
+        // Fade out
+        videoOpacityRef.current = Math.max(
+          0,
+          (TIMELINE.videoDuration - timeInVideo) / FADE_OUT_DUR,
+        );
+      } else {
+        videoOpacityRef.current = 1;
+      }
+    } else {
+      videoOpacityRef.current = 0;
     }
 
     // ── Phase: smoke + particles ───────────────────────────────────────────
@@ -488,7 +551,7 @@ function VolcanoTimeline({
 
     // Animate Volcano material emission (glow starts at explosion)
     if (t >= T.videoStart) {
-      const emissionProgress = Math.min((t - T.videoStart) / 1.5, 1.0);
+      const emissionProgress = Math.min((t - T.videoStart) / 4.5, 1.0);
       const ease =
         emissionProgress * emissionProgress * (3 - 2 * emissionProgress);
 
@@ -499,6 +562,9 @@ function VolcanoTimeline({
           candidates.forEach((m) => {
             const mat = m as THREE.MeshStandardMaterial;
             mat.emissiveIntensity = ease * 10.0;
+            if (mat.userData.uPourProgress) {
+              mat.userData.uPourProgress.value = ease;
+            }
           });
         }
       });
@@ -507,10 +573,8 @@ function VolcanoTimeline({
 
   return (
     <>
-      {/* <VolcanoLighting /> */}
-
-      {/* Video — plays once, unmounts when not in sequence */}
-      <VideoLayer visible={phases.video} />
+      {/* Video — plays once, fades out smoothly via opacityRef */}
+      <VideoLayer play={phases.video} opacityRef={videoOpacityRef} />
 
       {/* Smoke — fades in from bottom via progressRef */}
       <SmokeParticles config={BLACK_SMOKE} progressRef={smokeProgressRef} />
@@ -535,19 +599,19 @@ function VolcanoTimeline({
 export default function Volcano({
   position = [0, 0, 12000] as [number, number, number],
   rotation = [0, 0, 0] as [number, number, number],
-  scale = 18,
-  valleyPosition = [-8, 0, 6] as [number, number, number],
+  scale = [18, 18, 18] as [number, number, number] | number,
+  valleyPosition = [-6, 0, 6] as [number, number, number],
   valleyRotation = [0, 0, 0] as [number, number, number],
-  valleyScale = 0.08,
+  valleyScale = [0.09, 0.07, 0.09] as [number, number, number] | number,
   startSequence = false,
   onCameraShakeStart,
 }: {
   position?: [number, number, number];
   rotation?: [number, number, number];
-  scale?: number;
+  scale?: number | [number, number, number];
   valleyPosition?: [number, number, number];
   valleyRotation?: [number, number, number];
-  valleyScale?: number;
+  valleyScale?: number | [number, number, number];
   startSequence?: boolean;
   onCameraShakeStart?: () => void;
 }) {
@@ -565,7 +629,21 @@ export default function Volcano({
 
     loadVolcanoScene(gl, "/assets/ocean/mountainous_valley-opt.glb")
       .then((s) => {
-        if (live) setValleyScene(s);
+        if (live) {
+          s.traverse((child) => {
+            if ((child as THREE.Mesh).isMesh) {
+              const mesh = child as THREE.Mesh;
+              const raw = mesh.material;
+              const candidates = Array.isArray(raw) ? raw : [raw];
+              candidates.forEach((m) => {
+                const mat = m as THREE.MeshStandardMaterial;
+                if (mat.color) mat.color.setHex(0x525252);
+                mat.needsUpdate = true;
+              });
+            }
+          });
+          setValleyScene(s);
+        }
       })
       .catch((err) => console.error("❌ Valley load error:", err));
 
@@ -576,22 +654,50 @@ export default function Volcano({
 
   if (!scene) return null;
 
+  const scaleArr: [number, number, number] = Array.isArray(scale)
+    ? scale
+    : [scale, scale, scale];
+
+  const vScaleArr: [number, number, number] = Array.isArray(valleyScale)
+    ? valleyScale
+    : [valleyScale, valleyScale, valleyScale];
+
+  // We use the X scale as the uniform size for VFX so it matches the crater width without stretching.
+  const vfxUniformScale = scaleArr[0];
+  // The crater is roughly at Y=8. We shift the VFX up to match the non-uniform Y scaling of the volcano.
+  const vfxYOffset = 8 * (scaleArr[1] - scaleArr[0]);
+
   return (
-    <group position={position} rotation={rotation} scale={scale}>
-      <primitive object={scene} scale={25} rotation={[0, Math.PI, 0]} />
+    <group position={position} rotation={rotation}>
+      <primitive
+        object={scene}
+        scale={[scaleArr[0] * 25, scaleArr[1] * 25, scaleArr[2] * 25]}
+        rotation={[0, Math.PI, 0]}
+      />
       {valleyScene && (
         <primitive
           object={valleyScene}
-          position={valleyPosition}
+          position={[
+            valleyPosition[0] * scaleArr[0],
+            valleyPosition[1] * scaleArr[1],
+            valleyPosition[2] * scaleArr[2],
+          ]}
           rotation={valleyRotation}
-          scale={valleyScale}
+          scale={[
+            vScaleArr[0] * scaleArr[0],
+            vScaleArr[1] * scaleArr[1],
+            vScaleArr[2] * scaleArr[2],
+          ]}
         />
       )}
-      <VolcanoTimeline
-        scene={scene}
-        active={startSequence}
-        onCameraShakeStart={onCameraShakeStart}
-      />
+
+      <group scale={vfxUniformScale} position={[0, vfxYOffset, 0]}>
+        <VolcanoTimeline
+          scene={scene}
+          active={startSequence}
+          onCameraShakeStart={onCameraShakeStart}
+        />
+      </group>
     </group>
   );
 }

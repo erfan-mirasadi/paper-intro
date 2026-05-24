@@ -28,8 +28,8 @@ export default function OceanCamera({
   const exitTriggeredRef = useRef(false);
 
   // Swapped start and end points
-  const end = useMemo(() => new THREE.Vector3(-400, 60, -1500), []);
-  const start = useMemo(() => new THREE.Vector3(-500, 60, 3000), []);
+  const end = useMemo(() => new THREE.Vector3(-700, 110, -2500), []);
+  const start = useMemo(() => new THREE.Vector3(-700, 120, 6500), []);
 
   const baseQuaternion = useMemo(() => {
     const obj = new THREE.Object3D();
