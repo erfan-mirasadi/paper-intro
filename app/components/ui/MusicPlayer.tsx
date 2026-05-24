@@ -40,6 +40,21 @@ export default function MusicPlayer() {
     };
   }, [isPlaying]);
 
+  useEffect(() => {
+    const handlePlayMusic = () => {
+      if (!audioRef.current) return;
+      audioRef.current.volume = 1;
+      audioRef.current.play().catch(console.error);
+      setIsPlaying(true);
+    };
+
+    window.addEventListener("play-music", handlePlayMusic);
+
+    return () => {
+      window.removeEventListener("play-music", handlePlayMusic);
+    };
+  }, []);
+
   const togglePlay = () => {
     if (!audioRef.current) return;
     if (isPlaying) {

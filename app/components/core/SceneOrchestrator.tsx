@@ -185,15 +185,27 @@ function WebGLFade({
 }
 
 // ── LoadingScreen ─────────────────────────────────────────────────────────
-function LoadingScreen({ visible }: { visible: boolean }) {
+function LoadingScreen({ visible, readyToEnter, onEnter }: { visible: boolean; readyToEnter: boolean; onEnter: () => void }) {
   const { progress } = useProgress();
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      setMousePos({ x: e.clientX, y: e.clientY });
+    };
+    window.addEventListener("mousemove", handleMouseMove);
+    return () => window.removeEventListener("mousemove", handleMouseMove);
+  }, []);
+
   return (
     <div
+      onClick={readyToEnter ? onEnter : undefined}
       style={{
         position: "absolute",
         inset: 0,
         backgroundColor: "#030507",
-        zIndex: 100, // Highest z-index to cover everything including LightBeam
+        backgroundImage: "radial-gradient(circle at center, #0a111a 0%, #030507 100%)",
+        zIndex: 100,
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
@@ -202,36 +214,82 @@ function LoadingScreen({ visible }: { visible: boolean }) {
         transition: "opacity 1.5s ease-in-out",
         pointerEvents: visible ? "auto" : "none",
         color: "#ffffff",
-        fontFamily: "sans-serif",
+        fontFamily: "system-ui, -apple-system, sans-serif",
+        cursor: readyToEnter ? "none" : "wait",
       }}
     >
       <div
         style={{
-          letterSpacing: "3px",
-          textTransform: "uppercase",
-          fontSize: "12px",
-          marginBottom: "20px",
-        }}
-      >
-        Loading...
-      </div>
-      <div
-        style={{
-          width: "200px",
-          height: "2px",
-          backgroundColor: "rgba(255,255,255,0.1)",
-          overflow: "hidden",
+          position: "absolute",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          transition: "opacity 1s ease-in-out, transform 1s ease-in-out",
+          opacity: readyToEnter ? 0 : 1,
+          transform: readyToEnter ? "scale(0.95)" : "scale(1)",
+          pointerEvents: "none",
         }}
       >
         <div
           style={{
-            width: `${progress}%`,
-            height: "100%",
-            backgroundColor: "#ffffff",
-            transition: "width 0.2s",
+            letterSpacing: "8px",
+            textTransform: "uppercase",
+            fontSize: "10px",
+            marginBottom: "30px",
+            fontWeight: 300,
+            color: "rgba(255, 255, 255, 0.7)",
           }}
-        />
+        >
+          Initializing Environment
+        </div>
+        <div
+          style={{
+            width: "200px",
+            height: "1px",
+            backgroundColor: "rgba(255,255,255,0.1)",
+            position: "relative",
+          }}
+        >
+          <div
+            style={{
+              width: `${progress}%`,
+              height: "100%",
+              backgroundColor: "#ffffff",
+              boxShadow: "0 0 10px rgba(255, 255, 255, 0.8)",
+              transition: "width 0.3s ease-out",
+            }}
+          />
+        </div>
       </div>
+
+      {readyToEnter && (
+        <div
+          style={{
+            position: "fixed",
+            left: 0,
+            top: 0,
+            transform: `translate(${mousePos.x}px, ${mousePos.y}px)`,
+            pointerEvents: "none",
+            zIndex: 110,
+          }}
+        >
+          <div
+            className="animate-pulse"
+            style={{
+              transform: "translate(-50%, -50%)",
+              fontSize: "12px",
+              letterSpacing: "4px",
+              textTransform: "uppercase",
+              whiteSpace: "nowrap",
+              color: "#ffffff",
+              fontWeight: 300,
+              textShadow: "0 0 15px rgba(255,255,255,0.5)",
+            }}
+          >
+            Click to explore
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -248,6 +306,7 @@ export default function SceneOrchestrator() {
 
   // During warmup ALL scenes are visible so Three.js compiles their shaders
   const [warmupVisible, setWarmupVisible] = useState(true);
+  const [sceneReadyToEnter, setSceneReadyToEnter] = useState(false);
 
   // Fade overlay state
   const [overlayOpaque, setOverlayOpaque] = useState(true); // opacity 1/0
@@ -266,12 +325,20 @@ export default function SceneOrchestrator() {
       if (phaseRef.current !== "booting") return;
 
       setTimeout(() => {
-        setWarmupVisible(false); // hide inactive scenes — warmup done
-        phaseRef.current = "black_fade_out";
-        setOverlayOpaque(false); // start the first fade-out
+        setSceneReadyToEnter(true);
       }, POST_WARMUP_BUFFER_MS);
     });
   }, []); // permanent listener
+
+  const handleEnterClick = useCallback(() => {
+    if (!sceneReadyToEnter) return;
+
+    window.dispatchEvent(new CustomEvent("play-music"));
+
+    setWarmupVisible(false); // hide inactive scenes — warmup done
+    phaseRef.current = "black_fade_out";
+    setOverlayOpaque(false); // start the first fade-out
+  }, [sceneReadyToEnter]);
 
   // ── onTransitionRequest: fired by active scenes ───────────────────────
   useEffect(() => {
@@ -368,7 +435,11 @@ export default function SceneOrchestrator() {
       }}
     >
       {/* Elegant HTML Loading Screen to cover shader compilation stutter */}
-      <LoadingScreen visible={warmupVisible} />
+      <LoadingScreen 
+        visible={warmupVisible} 
+        readyToEnter={sceneReadyToEnter} 
+        onEnter={handleEnterClick} 
+      />
 
       {/* ── Three.js Canvas ─────────────────────────────────────────────
           All scenes are ALWAYS mounted here.  The Suspense resolves only
@@ -417,6 +488,7 @@ export default function SceneOrchestrator() {
             <OceanScene
               isActive={activeScene === "ocean"}
               isVisible={oceanVisible}
+              hasEntered={!warmupVisible}
             />
           </Suspense>
         </TheatreSetup>

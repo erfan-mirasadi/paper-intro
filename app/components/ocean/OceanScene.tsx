@@ -58,9 +58,10 @@ const WATER_PLANE_Z = 1000;
 interface OceanSceneProps {
   isActive: boolean;
   isVisible: boolean;
+  hasEntered?: boolean;
 }
 
-export default function OceanScene({ isActive, isVisible }: OceanSceneProps) {
+export default function OceanScene({ isActive, isVisible, hasEntered = true }: OceanSceneProps) {
   const [startVolcano, setStartVolcano] = useState(false);
   const [startStars, setStartStars] = useState(false);
 
@@ -97,7 +98,7 @@ export default function OceanScene({ isActive, isVisible }: OceanSceneProps) {
 
       <group visible={isVisible}>
         {/* OceanCamera: drives the global camera + applies camera shake */}
-        <OceanCamera isActive={isActive} shakeRef={shakeRef} />
+        <OceanCamera isActive={isActive && hasEntered} shakeRef={shakeRef} />
 
         {/* Skybox always mounted for warmup/preloading. isActive controls global state application, isVisible controls rendering */}
         <OceanGradientSky
@@ -117,7 +118,7 @@ export default function OceanScene({ isActive, isVisible }: OceanSceneProps) {
           mode="overlay"
           beamColor={0xa6e6fa}
           onRevealStart={handleSweepRevealStart}
-          isActive={isActive}
+          isActive={isActive && hasEntered}
           autoTriggerDelay={2500}
         >
           <OceanStaticObjects

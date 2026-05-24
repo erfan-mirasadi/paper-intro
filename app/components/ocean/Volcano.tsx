@@ -440,12 +440,34 @@ function VolcanoTimeline({
     activeRef.current = active;
   }, [active]);
 
+  const explosionAudioRef = useRef<HTMLAudioElement | null>(null);
+  const lavaAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    explosionAudioRef.current = new Audio("/assets/ocean/explosion.mp3");
+    lavaAudioRef.current = new Audio("/assets/ocean/lava loop.mp3");
+    
+    return () => {
+      if (explosionAudioRef.current) {
+        explosionAudioRef.current.pause();
+        explosionAudioRef.current = null;
+      }
+      if (lavaAudioRef.current) {
+        lavaAudioRef.current.pause();
+        lavaAudioRef.current = null;
+      }
+    };
+  }, []);
+
   const elapsed = useRef(0);
   const fired = useRef({
     shake: false,
     video: false,
     videoEnd: false,
     particles: false,
+    explosionAudio: false,
+    lavaAudio: false,
+    lavaAudioFade: false,
   });
   const smokeProgressRef = useRef(0); // 0→1, passed directly to SmokeParticles
   const videoOpacityRef = useRef(0);
@@ -482,8 +504,22 @@ function VolcanoTimeline({
         video: false,
         videoEnd: false,
         particles: false,
+        explosionAudio: false,
+        lavaAudio: false,
+        lavaAudioFade: false,
       };
       setPhases(INITIAL_PHASES);
+
+      // Reset audio
+      if (explosionAudioRef.current) {
+        explosionAudioRef.current.pause();
+        explosionAudioRef.current.currentTime = 0;
+      }
+      if (lavaAudioRef.current) {
+        lavaAudioRef.current.pause();
+        lavaAudioRef.current.currentTime = 0;
+        lavaAudioRef.current.volume = 1;
+      }
     }
   }, [active, scene]);
 
@@ -519,6 +555,37 @@ function VolcanoTimeline({
     if (!f.videoEnd && t >= T.videoStart + TIMELINE.videoDuration) {
       f.videoEnd = true;
       setPhases((p) => ({ ...p, video: false }));
+    }
+
+    // ── Audio playback ───────────────────────────────────────────────────────
+    if (!f.explosionAudio && t >= T.videoStart) {
+      f.explosionAudio = true;
+      if (explosionAudioRef.current) {
+        explosionAudioRef.current.currentTime = 0;
+        explosionAudioRef.current.play().catch((e) => console.warn("Explosion audio error:", e));
+      }
+    }
+
+    if (!f.lavaAudio && t >= T.videoStart + 2.0) {
+      f.lavaAudio = true;
+      if (lavaAudioRef.current) {
+        lavaAudioRef.current.currentTime = 0;
+        lavaAudioRef.current.volume = 1;
+        lavaAudioRef.current.play().catch((e) => console.warn("Lava audio error:", e));
+      }
+    }
+
+    if (f.lavaAudio && lavaAudioRef.current) {
+      const fadeStart = T.videoStart + 2.0 + 7.0; // Starts fading 7s after lava begins
+      const fadeDuration = 2.0; // Fade out duration
+      if (t >= fadeStart) {
+        const fadeProgress = Math.min((t - fadeStart) / fadeDuration, 1.0);
+        lavaAudioRef.current.volume = 1.0 - fadeProgress;
+        if (fadeProgress === 1.0 && !f.lavaAudioFade) {
+          f.lavaAudioFade = true;
+          lavaAudioRef.current.pause();
+        }
+      }
     }
 
     // ── Video Opacity Fade Out ─────────────────────────────────────────────
