@@ -1,11 +1,12 @@
 import { useEffect, useRef, useMemo } from "react";
 import * as THREE from "three";
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
+import { onSweepStart, onSweepSecondaryClick } from "../core/useSceneStore";
 import type { SceneId } from "../core/useSceneStore";
 
-const LINE_COUNT = 8;
-const LINE_GAP = 0.8;
-const LINE_RADIUS = 0.05;
+const LINE_COUNT = 5;
+const LINE_GAP = 0.3;
+const LINE_RADIUS = 0.03;
 
 // Beam tuning
 const BEAM_INTENSITY = 2.0;
@@ -30,8 +31,8 @@ export default function LightBeam({
   const mainGroupRef = useRef<THREE.Group>(null);
   const linesGroupRef = useRef<THREE.Group>(null);
 
-  const currentMouseX = useRef(0);
-  const currentMouseY = useRef(0);
+  const currentMouseX = useRef<number[]>(Array(LINE_COUNT).fill(0));
+  const currentMouseY = useRef<number[]>(Array(LINE_COUNT).fill(0));
   const targetMouseX = useRef(0);
   const targetMouseY = useRef(0);
 
@@ -42,6 +43,8 @@ export default function LightBeam({
   const loopAnimState = useRef({
     active: false,
     progress: 0.0,
+    hasSecondaryClicked: false,
+    flipMultiplier: 1.0,
   });
 
   const materialsRef = useRef<THREE.ShaderMaterial[]>([]);
@@ -89,7 +92,8 @@ export default function LightBeam({
       color: { value: currentColor },
       clickPulse: { value: 0.0 },
       loopAnim: { value: 0.0 },
-      mouse: { value: new THREE.Vector2(0, 0) },
+      isDoubleClicked: { value: 0.0 },
+      flipMultiplier: { value: 1.0 },
     }),
     [currentColor],
   );
@@ -100,9 +104,18 @@ export default function LightBeam({
       color: { value: currentColor },
       clickPulse: { value: 0.0 },
       loopAnim: { value: 0.0 },
-      mouse: { value: new THREE.Vector2(0, 0) },
+      isDoubleClicked: { value: 0.0 },
+      flipMultiplier: { value: 1.0 },
     }),
     [currentColor],
+  );
+
+  const miceUniforms = useMemo(
+    () =>
+      Array.from({ length: LINE_COUNT }).map(() => ({
+        mouse: { value: new THREE.Vector2(0, 0) },
+      })),
+    [],
   );
 
   const vertexShader = `
@@ -110,6 +123,8 @@ export default function LightBeam({
     uniform float lineIndex;
     uniform float clickPulse;
     uniform float loopAnim;
+    uniform float isDoubleClicked;
+    uniform float flipMultiplier;
     uniform vec2 mouse;
     varying vec2 vUv;
 
@@ -125,31 +140,65 @@ export default function LightBeam({
       float safeVUvX = max(0.0, vUv.x);
       float bendFactor = safeVUvX * safeVUvX;
       
-      float mouseReactX = mouse.x * 15.0 * bendFactor;
-      float mouseReactY = mouse.y * 15.0 * bendFactor;
+      // Reduced mouse interaction to prevent beams from turning towards the screen
+      float mouseReactX = mouse.x * 2.5 * bendFactor;
+      float mouseReactY = mouse.y * 2.5 * bendFactor;
 
       // Keep the basic curve spreading and mouse interaction
       pos.x += cos(angle) * baseRadius + mouseReactX;
       pos.y += sin(angle) * baseRadius + mouseReactY;
 
-      // --- DISNEY STAR ROLLER COASTER LOOP EFFECT ---
+      // --- REFINED ROLLER COASTER LOOP WITH LAG ---
+      // Line 1 and 3 lag behind
+      float isLaggard = mod(lineIndex, 2.0); // 1.0 for lines 1 and 3
+      float lagDelay = isLaggard * 1.0; // 1.0 seconds of lag in animation space
+      
       float maxDelay = 2.5; 
+      float maxLag = 1.0;
       float totalAngle = 4.0 * 3.14159265; // 2 full loops
-      float angleProgress = loopAnim * (totalAngle + maxDelay);
-      float angleDelay = (1.0 - vUv.x) * maxDelay;
-      float localAngle = clamp(angleProgress - angleDelay, 0.0, totalAngle);
+      
+      // Expand the total time window to accommodate the laggards
+      float angleProgress = loopAnim * (totalAngle + maxDelay + maxLag);
+      float angleDelay = (1.0 - vUv.x) * maxDelay + lagDelay;
+      
+      // Calculate progress and ease it perfectly so returning to rest is extremely smooth
+      float rawProgress = clamp((angleProgress - angleDelay) / totalAngle, 0.0, 1.0);
+      float smoothProgress = smoothstep(0.0, 1.0, rawProgress);
+      float localAngle = smoothProgress * totalAngle;
+      
+      // A soft envelope (0 -> 1 -> 0) to add forward movement and spread
+      float easeEnvelope = sin(smoothProgress * 3.14159265);
 
       float tipInfluence = smoothstep(0.2, 1.0, vUv.x); 
-      
       float loopRadius = 3.5 * tipInfluence;
 
-      // All beams follow the exact same loop direction together
-      float dx = sin(localAngle) * loopRadius;
-      float dy = (1.0 - cos(localAngle)) * loopRadius;
-      float dz = sin(localAngle) * loopRadius * 0.5; 
+      // The loop shape - forming a nice perfect circle
+      // If double-clicked, the second loop (localAngle > 2PI) becomes much larger
+      // We use smoothstep to organically spiral outward into the larger second loop
+      float isSecondLoop = smoothstep(3.14159, 6.28318, localAngle); 
+      float radiusScale = 1.0 + (isDoubleClicked * isSecondLoop * 0.8); // up to 1.8x larger!
+      float currentLoopRadius = loopRadius * radiusScale;
 
-      // Angle the loop slightly to the right for a better 3D look
-      pos.x += dx * 0.7;
+      float rawDx = sin(localAngle) * currentLoopRadius;
+      float rawDy = (1.0 - cos(localAngle)) * currentLoopRadius;
+      
+      // Flip the entire loop horizontally (left/right) based on the multiplier
+      float dx = rawDx * flipMultiplier;
+      float dy = rawDy;
+
+      float dz = sin(localAngle) * currentLoopRadius * 0.5; 
+
+      // Move forward gracefully based on the ease envelope
+      float forwardPush = easeEnvelope * 12.0 * tipInfluence;
+      dz -= forwardPush;
+
+      // Spread them slightly apart radially during the loop to form a more beautiful circle
+      float spread = easeEnvelope * 1.5 * tipInfluence;
+      pos.x += cos(angle) * spread;
+      pos.y += sin(angle) * spread;
+
+      // Apply the loop
+      pos.x += dx; // Removed the * 0.7 squash so it forms a beautiful circle
       pos.y += dy;
       pos.z += dz;
 
@@ -229,17 +278,33 @@ export default function LightBeam({
       targetMouseX.current = (e.clientX / window.innerWidth) * 2 - 1;
       targetMouseY.current = -(e.clientY / window.innerHeight) * 2 + 1;
     };
-    const onPointerDown = () => {
+    const handleSweepStart = () => {
       clickVelocity.current += 2.5;
-      loopAnimState.current.active = true;
-      loopAnimState.current.progress = 0.0;
+      if (!loopAnimState.current.active) {
+        loopAnimState.current.active = true;
+        loopAnimState.current.progress = 0.0;
+        loopAnimState.current.hasSecondaryClicked = false;
+        // Toggle the flip multiplier so it alternates left/right every time!
+        loopAnimState.current.flipMultiplier *= -1.0;
+      }
     };
 
+    const handleSweepSecondary = () => {
+      if (loopAnimState.current.active && !loopAnimState.current.hasSecondaryClicked) {
+        // Trigger the larger second loop
+        loopAnimState.current.hasSecondaryClicked = true;
+        clickVelocity.current += 2.0; // Give a nice extra light pulse!
+      }
+    };
+
+    const unsubStart = onSweepStart(handleSweepStart);
+    const unsubSecondary = onSweepSecondaryClick(handleSweepSecondary);
+
     window.addEventListener("pointermove", onMouseMove as EventListener);
-    window.addEventListener("pointerdown", onPointerDown);
     return () => {
       window.removeEventListener("pointermove", onMouseMove as EventListener);
-      window.removeEventListener("pointerdown", onPointerDown);
+      unsubStart();
+      unsubSecondary();
     };
   }, []);
 
@@ -255,10 +320,14 @@ export default function LightBeam({
       state.camera.add(mainGroupRef.current);
     }
 
-    currentMouseX.current +=
-      (targetMouseX.current - currentMouseX.current) * 0.08;
-    currentMouseY.current +=
-      (targetMouseY.current - currentMouseY.current) * 0.08;
+    // Update mice with different lag speeds so some beams trail behind
+    const speeds = [0.08, 0.02, 0.08, 0.015, 0.08]; // lines 1 and 3 lag behind
+    for (let i = 0; i < LINE_COUNT; i++) {
+      currentMouseX.current[i] +=
+        (targetMouseX.current - currentMouseX.current[i]) * speeds[i];
+      currentMouseY.current[i] +=
+        (targetMouseY.current - currentMouseY.current[i]) * speeds[i];
+    }
 
     const force = (clickTarget.current - clickValue.current) * 12.0;
     clickVelocity.current += force * delta;
@@ -266,10 +335,11 @@ export default function LightBeam({
     clickValue.current += clickVelocity.current * delta;
 
     if (loopAnimState.current.active) {
-      loopAnimState.current.progress += delta * 0.45; // ~2.2 seconds to complete
+      loopAnimState.current.progress += delta * 0.35; // slightly slower to give time for laggards
       if (loopAnimState.current.progress >= 1.0) {
         loopAnimState.current.progress = 0.0;
         loopAnimState.current.active = false;
+        loopAnimState.current.hasSecondaryClicked = false;
       }
     }
 
@@ -277,18 +347,22 @@ export default function LightBeam({
 
     currentColor.lerp(targetColor, 3.0 * delta);
 
-    const updateMat = (mat: THREE.ShaderMaterial) => {
+    const updateMat = (mat: THREE.ShaderMaterial, i: number) => {
       if (!mat?.uniforms) return;
       if (mat.uniforms.time) mat.uniforms.time.value = t;
       if (mat.uniforms.mouse?.value)
         mat.uniforms.mouse.value.set(
-          currentMouseX.current,
-          currentMouseY.current,
+          currentMouseX.current[i],
+          currentMouseY.current[i],
         );
       if (mat.uniforms.clickPulse)
         mat.uniforms.clickPulse.value = clickValue.current;
       if (mat.uniforms.loopAnim)
         mat.uniforms.loopAnim.value = loopAnimState.current.progress;
+      if (mat.uniforms.isDoubleClicked)
+        mat.uniforms.isDoubleClicked.value = loopAnimState.current.hasSecondaryClicked ? 1.0 : 0.0;
+      if (mat.uniforms.flipMultiplier)
+        mat.uniforms.flipMultiplier.value = loopAnimState.current.flipMultiplier;
     };
     materialsRef.current.forEach(updateMat);
     glowMaterialsRef.current.forEach(updateMat);
@@ -298,23 +372,25 @@ export default function LightBeam({
       const baseY = BEAM_BASE_POSITION.y;
       const baseZ = BEAM_BASE_POSITION.z;
 
+      // Group follows the "leader" mouse (index 0)
       linesGroupRef.current.position.x +=
         (baseX +
-          currentMouseX.current * 1.5 -
+          currentMouseX.current[0] * 1.5 -
           linesGroupRef.current.position.x) *
         0.04;
       linesGroupRef.current.position.y +=
         (baseY +
-          currentMouseY.current * 1.0 -
+          currentMouseY.current[0] * 1.0 -
           linesGroupRef.current.position.y) *
         0.04;
       linesGroupRef.current.position.z +=
         (baseZ - linesGroupRef.current.position.z) * 0.04;
       linesGroupRef.current.rotation.y +=
-        (-currentMouseX.current * 0.15 - linesGroupRef.current.rotation.y) *
+        (-currentMouseX.current[0] * 0.15 - linesGroupRef.current.rotation.y) *
         0.05;
       linesGroupRef.current.rotation.x +=
-        (currentMouseY.current * 0.1 - linesGroupRef.current.rotation.x) * 0.05;
+        (currentMouseY.current[0] * 0.1 - linesGroupRef.current.rotation.x) *
+        0.05;
 
       const breath = 0.7 + 0.3 * Math.sin(t * 2.5);
       const flicker =
@@ -396,7 +472,11 @@ export default function LightBeam({
                 ref={(el) => {
                   if (el) materialsRef.current[i] = el;
                 }}
-                uniforms={{ ...sharedUniforms, lineIndex: { value: i } }}
+                uniforms={{
+                  ...sharedUniforms,
+                  ...miceUniforms[i],
+                  lineIndex: { value: i },
+                }}
                 vertexShader={vertexShader}
                 fragmentShader={fragmentShader}
                 transparent={true}
@@ -412,7 +492,11 @@ export default function LightBeam({
                 ref={(el) => {
                   if (el) glowMaterialsRef.current[i] = el;
                 }}
-                uniforms={{ ...glowUniforms, lineIndex: { value: i } }}
+                uniforms={{
+                  ...glowUniforms,
+                  ...miceUniforms[i],
+                  lineIndex: { value: i },
+                }}
                 vertexShader={vertexShader}
                 fragmentShader={glowFragmentShader}
                 transparent={true}

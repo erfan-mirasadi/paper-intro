@@ -68,3 +68,12 @@ const _intro = createBus<VoidListener>();
  */
 export const signalIntroComplete = _intro.emit;
 export const onIntroComplete = _intro.subscribe;
+
+// ── Sweep Reveal Events ──────────────────────────────────────────────────
+const _sweepStart = createBus<VoidListener>();
+export const signalSweepStart = _sweepStart.emit;
+export const onSweepStart = _sweepStart.subscribe;
+
+const _sweepSecondaryClick = createBus<VoidListener>();
+export const signalSweepSecondaryClick = _sweepSecondaryClick.emit;
+export const onSweepSecondaryClick = _sweepSecondaryClick.subscribe;

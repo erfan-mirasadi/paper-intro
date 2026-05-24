@@ -2,6 +2,7 @@ import { useRef, useEffect, useCallback } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 import { BEAM_COLOR } from "./LightBeam";
+import { signalSweepStart, signalSweepSecondaryClick } from "../core/useSceneStore";
 
 interface SweepRevealWrapperProps {
   children: React.ReactNode;
@@ -261,13 +262,17 @@ export default function SweepRevealWrapper({
 
   // Trigger the effect
   const triggerSweep = useCallback(() => {
-    if (isSweeping.current) return;
+    if (isSweeping.current) {
+      signalSweepSecondaryClick();
+      return;
+    }
 
     // Lazy traverse: patch materials NOW (children are guaranteed ready after warmup)
     doTraverse();
 
     isSweeping.current = true;
     currentRadius.current = 0;
+    signalSweepStart();
 
     if (dynamicEpicenter) {
       // Wait 3 frames before grabbing camera position to ensure Theatre.js has updated it

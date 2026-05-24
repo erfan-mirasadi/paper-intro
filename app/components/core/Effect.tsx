@@ -21,7 +21,7 @@ export default function Effect() {
       <Vignette
         eskil={false}
         offset={0.2}
-        darkness={1.0}
+        darkness={0.6}
         blendFunction={BlendFunction.NORMAL}
       />
     </EffectComposer>
