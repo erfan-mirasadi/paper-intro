@@ -342,7 +342,7 @@ export default function SceneOrchestrator() {
   const handleEnterClick = useCallback(() => {
     if (!sceneReadyToEnter) return;
 
-    // window.dispatchEvent(new CustomEvent("play-music")); // Temporarily muted
+    window.dispatchEvent(new CustomEvent("play-music"));
 
     setWarmupVisible(false); // hide inactive scenes — warmup done
     phaseRef.current = "black_fade_out";
@@ -514,6 +514,9 @@ export default function SceneOrchestrator() {
         }}
       >
         <StoryOverlay activeScene={storyScene} />
+      </div>
+
+      <div style={{ position: "absolute", zIndex: 999, inset: 0, pointerEvents: "none" }}>
         <div style={{ pointerEvents: "auto" }}>
           <MusicPlayer />
         </div>

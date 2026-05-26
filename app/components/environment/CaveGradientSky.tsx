@@ -129,19 +129,21 @@ export default function CaveGradientSky({
       // Use an internal linear tracker (we'll borrow the object's userData to avoid a new ref for now, or just calculate from a known start)
       // Actually, since progressRef.current is the output, we can't just subtract from it if we want to ease it.
       // Let's use a separate linear progress tracker attached to the groupRef.
-      if (groupRef.current.userData.linearProgress === undefined) {
-        groupRef.current.userData.linearProgress = 1.0;
+      if (groupRef.current) {
+        if (groupRef.current.userData.linearProgress === undefined) {
+          groupRef.current.userData.linearProgress = 1.0;
+        }
+        groupRef.current.userData.linearProgress = THREE.MathUtils.clamp(
+          groupRef.current.userData.linearProgress - delta * speed,
+          0.0,
+          1.0
+        );
+        
+        // Apply smoothstep easing to the linear progress
+        // smoothstep(0, 1, x) = x^2 * (3 - 2x)
+        const lp = groupRef.current.userData.linearProgress;
+        progressRef.current = lp * lp * (3.0 - 2.0 * lp);
       }
-      groupRef.current.userData.linearProgress = THREE.MathUtils.clamp(
-        groupRef.current.userData.linearProgress - delta * speed,
-        0.0,
-        1.0
-      );
-      
-      // Apply smoothstep easing to the linear progress
-      // smoothstep(0, 1, x) = x^2 * (3 - 2x)
-      const lp = groupRef.current.userData.linearProgress;
-      progressRef.current = lp * lp * (3.0 - 2.0 * lp);
     } else {
       if (groupRef.current) groupRef.current.userData.linearProgress = 1.0;
       progressRef.current = 1.0;

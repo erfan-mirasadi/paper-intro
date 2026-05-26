@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import React, { useEffect } from "react";
 import { useGLTF, Instances, Instance } from "@react-three/drei";
+import { ThreeElements } from "@react-three/fiber";
 import { GLTF } from "three-stdlib";
 
 type GLTFResult = GLTF & {
@@ -12,10 +13,10 @@ type GLTFResult = GLTF & {
   };
 };
 
-export default function SandDunes(props: JSX.IntrinsicElements["group"]) {
+export default function SandDunes(props: ThreeElements["group"]) {
   const { nodes, materials } = useGLTF(
     "/assets/cave/sand-opt.glb",
-  ) as GLTFResult;
+  ) as unknown as GLTFResult;
 
   // Optional: modify material if necessary
   useEffect(() => {
