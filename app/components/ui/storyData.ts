@@ -12,42 +12,42 @@ export interface StoryNode {
 
 export const storyScript: StoryNode[] = [
   // ── SCENE 1: CAVE (Mount Noor) ──
-  {
-    id: "cave_1",
-    scene: "cave",
-    startTime: 0, // Starts as soon as the transition into the scene begins
-    duration: 4,
-    type: "title",
-    text: "Jabal al-Nour",
-    hasBackdrop: true,
-  },
-  {
-    id: "cave_2",
-    scene: "cave",
-    startTime: 7,
-    duration: 4,
-    type: "text",
-    text: "In the profound silence of the mountain, away from the noise of the world...",
-    hasBackdrop: false,
-  },
-  {
-    id: "cave_3",
-    scene: "cave",
-    startTime: 12,
-    duration: 4,
-    type: "text",
-    text: "A soul sought the truth in the depths of the Hira cave.",
-    hasBackdrop: false,
-  },
-  {
-    id: "cave_transition",
-    scene: "cave",
-    startTime: 16.5,
-    duration: 5,
-    type: "transition",
-    text: "The wait was coming to an end.",
-    hasBackdrop: true,
-  },
+  // {
+  //   id: "cave_1",
+  //   scene: "cave",
+  //   startTime: 0, // Starts as soon as the transition into the scene begins
+  //   duration: 4,
+  //   type: "title",
+  //   text: "Jabal al-Nour",
+  //   hasBackdrop: true,
+  // },
+  // {
+  //   id: "cave_2",
+  //   scene: "cave",
+  //   startTime: 7,
+  //   duration: 4,
+  //   type: "text",
+  //   text: "In the profound silence of the mountain, away from the noise of the world...",
+  //   hasBackdrop: false,
+  // },
+  // {
+  //   id: "cave_3",
+  //   scene: "cave",
+  //   startTime: 12,
+  //   duration: 4,
+  //   type: "text",
+  //   text: "A soul sought the truth in the depths of the Hira cave.",
+  //   hasBackdrop: false,
+  // },
+  // {
+  //   id: "cave_transition",
+  //   scene: "cave",
+  //   startTime: 16.5,
+  //   duration: 5,
+  //   type: "transition",
+  //   text: "The wait was coming to an end.",
+  //   hasBackdrop: true,
+  // },
 
   // ── SCENE 2: PALACE (Idols / Age of Ignorance) ──
   {

@@ -11,6 +11,7 @@ interface SweepRevealWrapperProps {
   maxRadius?: number; // How far the wave travels before stopping
   speed?: number; // How fast the wave expands per second
   beamColor?: number; // The color of the sweeping glow
+  glowIntensity?: number; // Multiplier for the brightness of the glow
   mode?: "reveal" | "overlay"; // Choose how the effect interacts with the scene
   darkness?: number; // 0.0 is pitch black, 1.0 is full original color
   trailLength?: number; // How long the glow trail is
@@ -25,6 +26,7 @@ export default function SweepRevealWrapper({
   maxRadius = 3000,
   speed = 250,
   beamColor = BEAM_COLOR,
+  glowIntensity = 1.0,
   mode = "reveal", // Default mode is the dark-to-light reveal
   darkness = 0.01, // Default darkness level
   trailLength = 120.0, // Default trail length
@@ -50,11 +52,13 @@ export default function SweepRevealWrapper({
   const darknessRef = useRef(darkness);
   const trailLengthRef = useRef(trailLength);
   const beamColorRef = useRef(beamColor);
+  const glowIntensityRef = useRef(glowIntensity);
   const epicenterRef = useRef(epicenter);
   useEffect(() => { modeRef.current = mode; }, [mode]);
   useEffect(() => { darknessRef.current = darkness; }, [darkness]);
   useEffect(() => { trailLengthRef.current = trailLength; }, [trailLength]);
   useEffect(() => { beamColorRef.current = beamColor; }, [beamColor]);
+  useEffect(() => { glowIntensityRef.current = glowIntensity; }, [glowIntensity]);
   useEffect(() => { epicenterRef.current = epicenter; }, [epicenter]);
 
   // ── Lazy Traverse ──────────────────────────────────────────────────────────
@@ -130,6 +134,7 @@ export default function SweepRevealWrapper({
           shader.uniforms.uGlowColor = { value: new THREE.Color(beamColorRef.current) };
           shader.uniforms.uDarkness = { value: darknessRef.current };
           shader.uniforms.uIsOverlay = { value: isOverlayFloat };
+          shader.uniforms.uGlowIntensity = { value: glowIntensityRef.current };
 
           shader.vertexShader = shader.vertexShader.replace(
             "#include <common>",
@@ -143,7 +148,12 @@ export default function SweepRevealWrapper({
             "#include <worldpos_vertex>",
             `
               #include <worldpos_vertex>
-              vWorldPositionCustom = (modelMatrix * vec4(position, 1.0)).xyz;
+              vec4 sweepWorldPos = vec4(transformed, 1.0);
+              #ifdef USE_INSTANCING
+                sweepWorldPos = instanceMatrix * sweepWorldPos;
+              #endif
+              sweepWorldPos = modelMatrix * sweepWorldPos;
+              vWorldPositionCustom = sweepWorldPos.xyz;
               `,
           );
 
@@ -158,6 +168,7 @@ export default function SweepRevealWrapper({
               uniform vec3 uGlowColor;
               uniform float uDarkness;
               uniform float uIsOverlay;
+              uniform float uGlowIntensity;
               varying vec3 vWorldPositionCustom;
 
               // --- Procedural Worley/Voronoi Noise for Plasma Texture ---
@@ -231,7 +242,7 @@ export default function SweepRevealWrapper({
               float heatPulsate = 0.95 + 0.05 * sin(uTime * 15.0); 
 
               // Combine into the final glow effect
-              vec3 finalGlow = heatPulsate * ((whiteHot * coreBrightness * 5.0) + (plasmaBody * 4.0 * bodyThickness));
+              vec3 finalGlow = uGlowIntensity * heatPulsate * ((whiteHot * coreBrightness * 5.0) + (plasmaBody * 4.0 * bodyThickness));
               
               // --- 4. Final Color Blend & Modes ---
               // If uIsOverlay is 1.0, beforeWaveColor is just normal baseColor.

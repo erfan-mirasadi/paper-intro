@@ -21,9 +21,9 @@ interface CaveModelProps {
 }
 
 export default function CaveModel({
-  position = [22, 0, 1],
-  rotation = [0, 0, 0],
-  scale = 1,
+  position = [0, -10, 40],
+  rotation = [-0.05, 0, 0],
+  scale = [1.4, 1.8, 1.6],
 }: CaveModelProps) {
   const gl = useThree((state) => state.gl);
 

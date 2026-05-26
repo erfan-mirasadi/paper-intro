@@ -185,7 +185,15 @@ function WebGLFade({
 }
 
 // ── LoadingScreen ─────────────────────────────────────────────────────────
-function LoadingScreen({ visible, readyToEnter, onEnter }: { visible: boolean; readyToEnter: boolean; onEnter: () => void }) {
+function LoadingScreen({
+  visible,
+  readyToEnter,
+  onEnter,
+}: {
+  visible: boolean;
+  readyToEnter: boolean;
+  onEnter: () => void;
+}) {
   const { progress } = useProgress();
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
 
@@ -204,7 +212,8 @@ function LoadingScreen({ visible, readyToEnter, onEnter }: { visible: boolean; r
         position: "absolute",
         inset: 0,
         backgroundColor: "#030507",
-        backgroundImage: "radial-gradient(circle at center, #0a111a 0%, #030507 100%)",
+        backgroundImage:
+          "radial-gradient(circle at center, #0a111a 0%, #030507 100%)",
         zIndex: 100,
         display: "flex",
         flexDirection: "column",
@@ -298,11 +307,11 @@ function LoadingScreen({ visible, readyToEnter, onEnter }: { visible: boolean; r
 
 export default function SceneOrchestrator() {
   // Which scene is logically active (controls camera, sequences, audio)
-  const [activeScene, setActiveScene] = useState<SceneId>("ocean");
+  const [activeScene, setActiveScene] = useState<SceneId>("cave");
 
   // Which scene's text should the StoryOverlay be playing?
   // We can advance this BEFORE activeScene to show text on the black screen.
-  const [storyScene, setStoryScene] = useState<SceneId>("ocean");
+  const [storyScene, setStoryScene] = useState<SceneId>("cave");
 
   // During warmup ALL scenes are visible so Three.js compiles their shaders
   const [warmupVisible, setWarmupVisible] = useState(true);
@@ -317,7 +326,7 @@ export default function SceneOrchestrator() {
 
   // Phase lives in a ref so event-bus callbacks always read the current value
   const phaseRef = useRef<Phase>("booting");
-  const pendingSceneRef = useRef<SceneId>("cave");
+  const pendingSceneRef = useRef<SceneId>("palace");
 
   // ── onSceneReady: fired by WarmupController after WARMUP_FRAMES frames ──
   useEffect(() => {
@@ -333,7 +342,7 @@ export default function SceneOrchestrator() {
   const handleEnterClick = useCallback(() => {
     if (!sceneReadyToEnter) return;
 
-    window.dispatchEvent(new CustomEvent("play-music"));
+    // window.dispatchEvent(new CustomEvent("play-music")); // Temporarily muted
 
     setWarmupVisible(false); // hide inactive scenes — warmup done
     phaseRef.current = "black_fade_out";
@@ -435,10 +444,10 @@ export default function SceneOrchestrator() {
       }}
     >
       {/* Elegant HTML Loading Screen to cover shader compilation stutter */}
-      <LoadingScreen 
-        visible={warmupVisible} 
-        readyToEnter={sceneReadyToEnter} 
-        onEnter={handleEnterClick} 
+      <LoadingScreen
+        visible={warmupVisible}
+        readyToEnter={sceneReadyToEnter}
+        onEnter={handleEnterClick}
       />
 
       {/* ── Three.js Canvas ─────────────────────────────────────────────
@@ -480,6 +489,7 @@ export default function SceneOrchestrator() {
             <CaveScene
               isActive={activeScene === "cave"}
               isVisible={caveVisible}
+              hasEntered={!warmupVisible}
             />
             <PalaceScene
               isActive={activeScene === "palace"}

@@ -197,6 +197,7 @@ interface SkyboxProps {
   distance?: number;
   isActive?: boolean;
   isVisible?: boolean;
+  children?: React.ReactNode;
 }
 
 export default function Skybox({ 
@@ -208,7 +209,8 @@ export default function Skybox({
   skyScale = [3, 0.8, 1],
   distance = 6000,
   isActive = true,
-  isVisible = true
+  isVisible = true,
+  children
 }: SkyboxProps = {}) {
   const skyTexture = useTexture(image);
   const envMap = useEnvironment({ files: environmentFile });
@@ -248,14 +250,15 @@ export default function Skybox({
               args={[1, 16, 16, Math.PI / 2, Math.PI, 0, Math.PI / 2]}
             />
             <meshBasicMaterial
-              map={skyTexture}
-              side={THREE.BackSide}
-              toneMapped={false}
-              fog={false}
-              depthWrite={false}
+               map={skyTexture}
+               side={THREE.BackSide}
+               toneMapped={false}
+               fog={false}
+               depthWrite={false}
             />
           </mesh>
           {showMoon && <Moon />}
+          {children}
         </group>
       </group>
     </>
